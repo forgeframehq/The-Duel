@@ -1,0 +1,18 @@
+{
+  "name": "the-duel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Duel: a one-on-one sword fighting game for phones",
+  "scripts": {
+    "www": "node scripts/build-www.mjs",
+    "android": "npm run www && npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.0.0"
+  },
+  "license": "UNLICENSED"
+}

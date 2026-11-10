@@ -1,0 +1,75 @@
+# Builds the Android app when asked: a commit message with [release], a v* tag, or a manual run.
+#  - Always: a debug APK you can install straight onto a phone (Actions run > Artifacts).
+#  - When the signing secrets are set: a signed release APK and an .aab for Google Play.
+#  - Pushing a tag like v1.0.0 also attaches the APK to a GitHub Release.
+name: Android build
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+jobs:
+  build:
+    # only when asked: a [release] commit, a v* tag, or a manual run (no APK on every push)
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      HAS_KEY: ${{ secrets.KEYSTORE_B64 != '' }}
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('1.0.{0}', github.run_number) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 21 }
+      # Gradle itself comes from the runner's tool cache (and GitHub's action cache after the
+      # first run), not from services.gradle.org at build time: that download timed out and
+      # returned 504s on 9 Nov and failed three builds in a row.
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: wrapper, cache-read-only: false }
+      - run: npm ci || npm install
+      - run: npm run android
+      - name: Debug APK
+        working-directory: android
+        run: set -o pipefail; ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee $RUNNER_TEMP/build.log
+      - name: Share the build log on the ci-logs branch
+        if: failure()
+        run: |
+          cd $RUNNER_TEMP && rm -rf logs && mkdir logs && cd logs && git init -q && cp ../build.log . || true
+          git config user.name ci && git config user.email ci@users.noreply.github.com
+          git add -A && git commit -qm "build log ${{ github.run_number }}" && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" HEAD:ci-logs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: the-duel-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+      - name: Signed release (APK + Play bundle)
+        if: ${{ env.HAS_KEY == 'true' }}
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        working-directory: android
+        run: |
+          echo "${{ secrets.KEYSTORE_B64 }}" | base64 -d > $RUNNER_TEMP/upload.jks
+          export KEYSTORE_FILE=$RUNNER_TEMP/upload.jks
+          ./gradlew assembleRelease bundleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: ${{ hashFiles('android/app/build/outputs/bundle/release/*.aab') != '' }}
+        with:
+          name: the-duel-release
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+      # a GitHub Release with the APK: push a tag v*, or put [release] in the commit message
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v') || contains(github.event.head_commit.message, '[release]')
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', env.VERSION_NAME) }}
+          name: The Duel ${{ env.VERSION_NAME }}
+          body: Install the APK on an Android phone (allow installs from this source when asked).
+          files: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/apk/release/*.apk
