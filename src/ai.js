@@ -77,7 +77,7 @@ export function thinkAI(ai, w, selfIdx) {
   const nx = dx / dist, nz = dz / dist;
 
   // --- Defence: decide once per incoming swing how to answer it.
-  if (e.state === 'attack' && e.swingId !== ai.seenSwing && los && dist < e.atk.range + 1.2) {
+  if (e.state === 'attack' && e.swingId !== ai.seenSwing && los && dist < e.atk.range + (e.stats.reach || 0) + 1.2) {
     ai.seenSwing = e.swingId;
     const impact = ai.clock + (e.atk.windup - e.t);
     const roll = r();
@@ -118,7 +118,7 @@ export function thinkAI(ai, w, selfIdx) {
     case 'approach': {
       const [sx, sz] = steer(w, f, ux, uz);
       cmd.mx = sx; cmd.mz = sz; cmd.sprint = dist > 9 && f.stam > 40;
-      if (los && dist < 3.3) {
+      if (los && dist < 3.3 + (f.stats.reach || 0)) {
         if (f.stam > 35 && r() < p.aggro) { ai.comboLeft = 1 + Math.floor(r() * p.comboMax); ai.wantHeavy = r() < p.heavy; setMode(ai, 'attack', 2.5); }
         else { ai.circleDir = r() < 0.5 ? 1 : -1; setMode(ai, 'circle', 0.5 + r() * 1.1); }
       }
@@ -138,7 +138,7 @@ export function thinkAI(ai, w, selfIdx) {
       break;
     }
     case 'attack': {
-      const reach = ai.wantHeavy ? 2.3 : 2.0;
+      const reach = (ai.wantHeavy ? 2.3 : 2.0) + (f.stats.reach || 0) * 0.8;
       if (dist > reach) { const [sx, sz] = steer(w, f, ux, uz); cmd.mx = sx; cmd.mz = sz; }
       const canStart = f.state === 'idle' || f.state === 'block';
       const canChain = f.state === 'attack' && f.t > f.atk.windup + f.atk.active && !f.queued;

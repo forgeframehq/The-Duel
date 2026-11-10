@@ -38,7 +38,7 @@
 
 <div id="hud" class="hidden">
   <div class="side you">
-    <div class="row"><span class="name">YOU</span><span class="pips" id="pips0"></span></div>
+    <div class="row"><span class="name" id="you-name">YOU</span><span class="pips" id="pips0"></span></div>
     <div class="hp"><b id="ghost0"></b><i id="hp0"></i></div>
     <div class="st"><i id="st0"></i></div>
   </div>
@@ -68,14 +68,35 @@
     <div id="menu-kicker">A one-on-one fight to the last blow</div>
     <h1 id="menu-title">THE DUEL</h1>
     <div id="menu-result"></div>
-    <div class="levels" role="group" aria-label="Difficulty">
-      <button data-level="easy">Squire</button>
-      <button data-level="normal" class="on">Knight</button>
-      <button data-level="hard">Champion</button>
-    </div>
     <button id="start">FIGHT</button>
-    <p id="hint">Left thumb moves. Drag the right side to look. Block just before a hit lands to parry.</p>
+    <button id="change" class="ghost hidden">Change fighters</button>
+    <p id="hint">Left thumb moves. Drag the right side to look. Block just before a hit lands to parry. Strike from behind for extra damage.</p>
     <div class="studio-credit"><img src="assets/ui/studio_mark.png" alt=""><span>A Forge Frame game</span></div>
+  </div>
+</div>
+
+<!-- Character select -->
+<div id="select" class="hidden">
+  <header>
+    <button id="sel-back" class="back" aria-label="Back">‹</button>
+    <h2 id="sel-title">Choose your fighter</h2>
+    <div class="tabs" role="group" aria-label="Side"><button data-side="you" class="on">You</button><button data-side="rival">Rival</button></div>
+  </header>
+  <div class="sel-body">
+    <div id="roster"></div>
+    <aside id="detail">
+      <div class="d-top">
+        <img id="d-portrait" alt="">
+        <div class="d-text"><small id="d-origin"></small><h3 id="d-name"></h3><p id="d-blurb"></p></div>
+      </div>
+      <div id="d-stats"></div>
+      <div class="levels" role="group" aria-label="Difficulty">
+        <button data-level="easy">Squire</button>
+        <button data-level="normal" class="on">Knight</button>
+        <button data-level="hard">Champion</button>
+      </div>
+      <button id="go">TO BATTLE</button>
+    </aside>
   </div>
 </div>
 

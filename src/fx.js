@@ -85,7 +85,7 @@ export class Trail {
       this.count -= 1;
     }
     for (let i = 0; i < SEG; i++) {
-      const a = i < this.count ? (1 - i / this.count) * 0.55 : 0;
+      const a = i < this.count ? (1 - i / this.count) * 0.4 : 0;
       this.alpha[i * 2] = a; this.alpha[i * 2 + 1] = a * 0.2;
       // Unused tail segments collapse onto the last valid sample so they draw nothing.
       if (i >= this.count && i > 0) this.pos.copyWithin(i * 6, (i - 1) * 6, i * 6);

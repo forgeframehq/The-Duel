@@ -44,7 +44,7 @@ function buildGround(group) {
   const plane = new THREE.PlaneGeometry(180, 180, 60, 60);
   plane.rotateX(-Math.PI / 2);
   const pos = plane.attributes.position, col = new Float32Array(pos.count * 3);
-  const grassA = new THREE.Color(0x5a7d33), grassB = new THREE.Color(0x8a9a42), dirt = new THREE.Color(0x9a7a4c), c = new THREE.Color();
+  const grassA = new THREE.Color(0xc9d6a8), grassB = new THREE.Color(0xffffff), dirt = new THREE.Color(0xd2a05e), c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i), d = Math.hypot(x, z);
     const n = hash(i * 1.7) * 0.6 + (Math.sin(x * 0.23) * Math.cos(z * 0.19) + 1) * 0.2;
@@ -57,7 +57,9 @@ function buildGround(group) {
   }
   plane.setAttribute('color', new THREE.BufferAttribute(col, 3));
   plane.computeVertexNormals();
-  const ground = new THREE.Mesh(plane, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
+  const grass = new THREE.TextureLoader().load(ART + 'grass_a.jpg');
+  grass.wrapS = grass.wrapT = THREE.RepeatWrapping; grass.repeat.set(60, 60); grass.colorSpace = THREE.SRGBColorSpace; grass.anisotropy = 4;
+  const ground = new THREE.Mesh(plane, new THREE.MeshStandardMaterial({ map: grass, vertexColors: true, roughness: 1 }));
   ground.receiveShadow = true;
   group.add(ground);
 
@@ -136,23 +138,61 @@ function buildObstacles(group) {
   });
 }
 
-function buildBackdrop(group) {
-  const trunk = new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 1, flatShading: true });
-  const leaf = new THREE.MeshStandardMaterial({ color: 0x3d5a2a, roughness: 1, flatShading: true });
-  const n = 46, trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.3, 0.45, 4, 6), trunk, n);
-  const crowns = new THREE.InstancedMesh(new THREE.ConeGeometry(2.6, 8, 7), leaf, n);
-  const d = new THREE.Object3D(), col = new THREE.Color();
-  for (let i = 0; i < n; i++) {
-    const a = hash(i * 3.3) * Math.PI * 2, r = ARENA_R + 6 + hash(i * 7.1) * 34, s = 0.8 + hash(i * 1.9) * 0.9;
-    const x = Math.sin(a) * r, z = Math.cos(a) * r, y = Math.min(9, (r - ARENA_R - 2) * 0.16) * 0.8;
-    d.position.set(x, y + 2 * s, z); d.scale.setScalar(s); d.rotation.set(0, a, 0); d.updateMatrix();
-    trunks.setMatrixAt(i, d.matrix);
-    d.position.set(x, y + 7 * s, z); d.updateMatrix();
-    crowns.setMatrixAt(i, d.matrix);
-    const g = 0.75 + hash(i * 9.9) * 0.5;
-    crowns.setColorAt(i, col.setRGB(g * 0.9, g, g * 0.85));
+// Painted scenery from Dawn of Dynasties, stood up as camera-facing cut-outs beyond the wall.
+const ART = new URL('../assets/scenery/', import.meta.url).href;
+const hillY = (r) => Math.min(9, Math.max(0, r - ARENA_R - 2) * 0.16) * 0.75;
+
+function loadCutout(file, recolor) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+      const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0);
+      if (recolor) {
+        // Buildings are painted with magenta where the owner's colour goes; make it crimson.
+        const data = ctx.getImageData(0, 0, cv.width, cv.height), d = data.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const m = Math.min(d[i], d[i + 2]) - d[i + 1];
+          if (m > 45) { const l = Math.max(d[i], d[i + 2]) / 255; d[i] = 205 * l; d[i + 1] = 30 * l; d[i + 2] = 24 * l; }
+        }
+        ctx.putImageData(data, 0, 0);
+      }
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      resolve({ tex, aspect: img.width / img.height });
+    };
+    img.onerror = () => resolve(null);
+    img.src = ART + file;
+  });
+}
+
+function cutout(group, art, angle, r, height, tint = 0xe6bf96) {
+  if (!art) return;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: art.tex, color: tint, alphaTest: 0.35, transparent: false }));
+  sp.center.set(0.5, 0.04);
+  sp.scale.set(height * art.aspect, height, 1);
+  sp.position.set(Math.sin(angle) * r, hillY(r), Math.cos(angle) * r);
+  group.add(sp);
+}
+
+async function buildScenery(group) {
+  const files = ['res_tree_0.png', 'res_tree_1.png', 'res_tree_2.png', 'res_tree_3.png', 'castle.png', 'tower.png', 'barracks.png', 'towncenter.png', 'house.png', 'mill.png'];
+  const [t0, t1, t2, t3, castle, tower, barracks, town, house, mill] = await Promise.all(files.map((f, i) => loadCutout(f, i >= 4)));
+  // A castle beyond the rival's end, a village round the rest.
+  cutout(group, castle, Math.PI * 0.0, 74, 24);
+  cutout(group, tower, Math.PI * 0.14, 52, 15); cutout(group, tower, -Math.PI * 0.15, 54, 15);
+  cutout(group, barracks, Math.PI * 0.4, 50, 11); cutout(group, town, -Math.PI * 0.43, 52, 12);
+  cutout(group, house, Math.PI * 0.6, 46, 8); cutout(group, house, -Math.PI * 0.66, 48, 8); cutout(group, house, Math.PI * 0.93, 50, 8);
+  cutout(group, mill, -Math.PI * 0.86, 48, 10); cutout(group, town, Math.PI * 0.78, 58, 12);
+  const trees = [t0, t1, t2, t3];
+  for (let i = 0; i < 64; i++) {
+    const a = hash(i * 3.3) * Math.PI * 2, r = ARENA_R + 6 + hash(i * 7.1) * 50, s = 7 + hash(i * 1.9) * 4;
+    const g = 0.78 + hash(i * 9.9) * 0.22;
+    cutout(group, trees[i % 4], a, r, s, new THREE.Color(g, g * 0.86, g * 0.68));
   }
-  group.add(trunks, crowns);
+}
+
+function buildBackdrop(group) {
+  buildScenery(group);
 
   // Sky dome with a horizon-to-zenith gradient
   const sky = new THREE.SphereGeometry(300, 24, 12);

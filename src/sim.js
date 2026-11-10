@@ -20,7 +20,7 @@ export const EMPTY_CMD = Object.freeze({ mx: 0, mz: 0, faceYaw: null, attack: fa
 
 // Upgrade hook for the progression phase: everything a character build can change lives here.
 export function defaultStats() {
-  return { maxHp: 100, maxStam: 100, power: 1, armor: 0, speed: 4.4 };
+  return { maxHp: 100, maxStam: 100, power: 1, armor: 0, speed: 4.4, reach: 0 };
 }
 
 export function wrapAngle(a) {
@@ -235,7 +235,7 @@ function findHit(a, b, w) {
   const atk = a.atk;
   if (a.t < atk.windup || a.t > atk.windup + atk.active) return null;
   const dx = b.x - a.x, dz = b.z - a.z;
-  if (Math.hypot(dx, dz) > atk.range) return null;
+  if (Math.hypot(dx, dz) > atk.range + (a.stats.reach || 0)) return null;
   if (Math.abs(angDiff(a.yaw, Math.atan2(dx, dz))) > atk.arc) return null;
   if (!hasLOS(w, a.x, a.z, b.x, b.z)) return null;
   return atk;

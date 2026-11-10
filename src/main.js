@@ -1,12 +1,14 @@
 // main.js — wires everything together: render loop, camera, HUD, and the feel layer
 // (hit-stop, slow motion, shake) that sits on top of the rules in sim.js.
 import * as THREE from 'three';
-import { TICK, ROUNDS_TO_WIN, createWorld, stepWorld, hasLOS, defaultStats, wrapAngle } from './sim.js';
+import { TICK, ROUNDS_TO_WIN, createWorld, stepWorld, hasLOS, wrapAngle } from './sim.js';
 import { createAI, thinkAI } from './ai.js';
 import { buildArena } from './arena.js';
 import { FighterView } from './fighterView.js';
 import { Particles, Trail, Shake } from './fx.js';
 import { Input } from './input.js';
+import { byId } from './roster.js';
+import { initSelect, resolveRival } from './select.js';
 import { sfx, unlockAudio, buzz } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,7 +25,11 @@ scene.fog = new THREE.Fog(0xe9b27a, 40, 180);
 const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 500);
 
 // Golden hour, to match the look of Dawn of Dynasties: low warm sun, cool sky fill.
-scene.add(new THREE.HemisphereLight(0xffd9a8, 0x4a4a2c, 1.05));
+scene.add(new THREE.HemisphereLight(0xffe0b8, 0x5a5236, 1.5));
+// A cool fill from the opposite side keeps fighters readable when the sun is behind them.
+const fill = new THREE.DirectionalLight(0xa8bfe6, 0.9);
+fill.position.set(24, 16, -22);
+scene.add(fill);
 const sun = new THREE.DirectionalLight(0xffc27a, 3.0);
 sun.position.set(-30, 20, 26);
 sun.castShadow = true;
@@ -35,21 +41,31 @@ scene.add(sun);
 const arena = buildArena();
 scene.add(arena.group);
 
-const views = [new FighterView('blue'), new FighterView('red')];
-views.forEach((v) => scene.add(v.root));
+// The two fighters on screen. Filled in once their models have loaded.
+let views = [];
+let fighters = [byId('franks_knight'), byId('byzantines_knight')];
+let fighterRequest = 0;
+async function setFighters(youId, rivalId) {
+  const request = ++fighterRequest;
+  const next = await Promise.all([FighterView.create(byId(youId), 'blue'), FighterView.create(byId(rivalId), 'red')]);
+  if (request !== fighterRequest) { next.forEach((v) => v.dispose()); return; } // a newer choice has been made since
+  views.forEach((v) => v.dispose());
+  views = next; fighters = [byId(youId), byId(rivalId)];
+  views.forEach((v) => scene.add(v.root));
+}
 const trails = [new Trail(scene), new Trail(scene)];
 const particles = new Particles(scene);
 const shake = new Shake();
 const input = new Input();
 
-let world = createWorld(arena, defaultStats(), defaultStats());
+let world = createWorld(arena, { ...fighters[0].stats }, { ...fighters[1].stats });
 let ai = createAI('normal');
 let level = 'normal';
 let app = 'menu';            // 'menu' | 'playing'
 let paused = false;
 let acc = 0, hitStop = 0, slowT = 0, slowScale = 1, lastTime = performance.now(), menuSpin = 0;
 let lockWanted = true, locked = false, lostT = 0, lastSecond = -1;
-const cam = { yaw: 0, pitch: 0.3, dist: 5.4 };
+const cam = { yaw: 0, pitch: 0.36, dist: 5.2 };
 const tmp = new THREE.Vector3(), look = new THREE.Vector3();
 
 // ---------- HUD ----------
@@ -106,7 +122,8 @@ function handleEvents() {
     switch (e.type) {
       case 'round':
         views.forEach((v, i) => v.snap(world.fighters[i]));
-        cam.yaw = world.fighters[0].yaw; cam.pitch = 0.3; locked = false; lostT = 0;
+        trails.forEach((t) => { t.count = 0; });
+        cam.yaw = world.fighters[0].yaw; cam.pitch = 0.36; locked = false; lostT = 0;
         if (app === 'playing') { banner('ROUND ' + world.round, 'Ready', 1.9); sfx.horn(); }
         break;
       case 'fight': banner('FIGHT!', '', 1.0); sfx.gong(); break;
@@ -174,13 +191,14 @@ function blocked(x, z) {
 }
 
 function updateCamera(dt) {
-  const [p, e] = world.fighters, pv = views[0].root.position, ev = views[1].root.position;
-  if (app === 'menu') {
+  const [p, e] = world.fighters;
+  if (app === 'menu' || views.length < 2) {
     menuSpin += dt * 0.12;
     camera.position.set(Math.sin(menuSpin) * 13, 4.2, Math.cos(menuSpin) * 13);
     camera.lookAt(0, 1.4, 0);
     return;
   }
+  const pv = views[0].root.position, ev = views[1].root.position;
   const dx = e.x - p.x, dz = e.z - p.z, dist = Math.hypot(dx, dz), los = hasLOS(world, p.x, p.z, e.x, e.z);
   const fighting = world.phase === 'fight' && p.state !== 'dead';
   if (!lockWanted || !fighting) locked = world.phase !== 'fight' && lockWanted && los;
@@ -219,32 +237,55 @@ function showMenu(title, result = '') {
   app = 'menu'; input.enabled = false; input.reset();
   $('menu-title').textContent = title;
   $('menu-result').textContent = result;
-  $('menu-kicker').textContent = result ? 'Best of three' : 'A one-on-one fight to the last blow';
+  $('menu-kicker').textContent = result ? `${fighters[0].name} against ${fighters[1].name}` : 'A one-on-one fight to the last blow';
   $('start').textContent = result ? 'REMATCH' : 'FIGHT';
+  $('change').classList.toggle('hidden', !result);
+  $('hint').classList.toggle('hidden', !!result);
   $('menu').classList.remove('hidden'); $('hud').classList.add('hidden'); $('controls').classList.add('hidden');
 }
 
-function startMatch() {
+// Landscape only: go fullscreen and pin the orientation where the browser allows it.
+// Must be called from a tap, so it runs on the button press rather than after loading.
+function goFullscreen() {
   unlockAudio();
-  // Landscape only: go fullscreen and pin the orientation where the browser allows it.
   const el = document.documentElement;
   if (matchMedia('(pointer: coarse)').matches && el.requestFullscreen && !document.fullscreenElement) {
     el.requestFullscreen({ navigationUI: 'hide' }).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
   }
-  world = createWorld(arena, defaultStats(), defaultStats());
+}
+
+function startMatch() {
+  world = createWorld(arena, { ...fighters[0].stats }, { ...fighters[1].stats });
   ai = createAI(level, (Date.now() & 0xffff) + 1);
   acc = 0; hitStop = 0; slowT = 0; paused = false; lockWanted = true; lastSecond = -1;
   app = 'playing'; input.enabled = true; input.reset();
   $('menu').classList.add('hidden'); $('hud').classList.remove('hidden'); $('controls').classList.remove('hidden');
-  $('foe-name').textContent = { easy: 'SQUIRE', normal: 'KNIGHT', hard: 'CHAMPION' }[level];
+  $('you-name').textContent = fighters[0].name.toUpperCase();
+  $('foe-name').textContent = fighters[1].name.toUpperCase();
   handleEvents(); updateHud();
 }
 
-document.querySelectorAll('.levels button').forEach((b) => b.addEventListener('click', () => {
-  level = b.dataset.level;
-  document.querySelectorAll('.levels button').forEach((x) => x.classList.toggle('on', x === b));
-}));
-$('start').addEventListener('click', startMatch);
+const select = initSelect({
+  onBack: () => $('menu').classList.remove('hidden'),
+  onGo: async (picks) => {
+    goFullscreen();
+    select.busy('LOADING…');
+    level = picks.level;
+    try {
+      await setFighters(picks.you, resolveRival(picks));
+    } catch (err) {
+      console.error(err);
+      select.busy('COULD NOT LOAD — TAP TO RETRY');
+      $('go').disabled = false;
+      return;
+    }
+    select.close();
+    startMatch();
+  },
+});
+function openSelect() { goFullscreen(); $('menu').classList.add('hidden'); select.open(); }
+$('start').addEventListener('click', () => { if ($('menu-result').textContent && views.length === 2) { goFullscreen(); startMatch(); } else openSelect(); });
+$('change').addEventListener('click', openSelect);
 input.onLock = () => { lockWanted = !lockWanted; if (!lockWanted) locked = false; };
 function setPaused(v) {
   if (app !== 'playing') return;
@@ -296,7 +337,7 @@ function frame(now) {
     updateHud();
   }
 
-  world.fighters.forEach((f, i) => {
+  if (views.length === 2) world.fighters.forEach((f, i) => {
     views[i].update(f, simDt);
     const swinging = f.state === 'attack' && f.t >= f.atk.windup * 0.7 && f.t <= f.atk.windup + f.atk.active + 0.05;
     if (simDt > 0) trails[i].update(views[i], swinging, swinging && f.atk.heavy);
@@ -309,9 +350,10 @@ function frame(now) {
 }
 
 showMenu('THE DUEL');
-views.forEach((v, i) => v.snap(world.fighters[i]));
 world.events.length = 0;
+// Two fighters stand in the ring behind the menu while the player decides.
+setFighters(fighters[0].id, fighters[1].id).then(() => views.forEach((v, i) => v.snap(world.fighters[i]))).catch((err) => console.error(err));
 requestAnimationFrame(frame);
 
 // Handy for testing from the browser console.
-window.__duel = { get world() { return world; }, get ai() { return ai; }, input, cam, views, startMatch, setLevel: (l) => { level = l; } };
+window.__duel = { get world() { return world; }, get ai() { return ai; }, input, cam, get views() { return views; }, startMatch, setFighters, setLevel: (l) => { level = l; } };

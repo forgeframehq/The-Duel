@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><title>Portrait renderer</title>
+<style>body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "../vendor/three.module.js" } }</script>
+<canvas id="c" width="480" height="600"></canvas>
+<script type="module">
+// Dev tool: renders a fighter's select-screen portrait on a transparent background.
+// Open with ?id=<roster id>, wait for window.ready, screenshot the canvas.
+import * as THREE from 'three';
+import { FighterView } from '../src/fighterView.js';
+import { byId } from '../src/roster.js';
+const id = new URLSearchParams(location.search).get('id') || 'franks_knight';
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.15;
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffe2b8, 0x3a2a1a, 1.3));
+const key = new THREE.DirectionalLight(0xffd29a, 3.2); key.position.set(-2.5, 3, 4); scene.add(key);
+const rim = new THREE.DirectionalLight(0x9ab8ff, 1.6); rim.position.set(3, 2, -3); scene.add(rim);
+const cam = new THREE.PerspectiveCamera(30, 480 / 600, 0.1, 50);
+const q = new URLSearchParams(location.search);
+const v = await FighterView.create(byId(id), 'neutral');
+v.ring.visible = false;
+scene.add(v.root);
+const f = { x: 0, z: 0, vx: 0, vz: 0, yaw: 0.75, state: 'idle', t: 0 };
+if (q.get('atk')) { const sim = await import('../src/sim.js'); f.state = 'attack'; f.atk = sim.LIGHT[0]; f.t = f.atk.windup * +q.get('atk'); f.yaw = +(q.get('yaw') || 0.45); }
+if (q.get('state')) { f.state = q.get('state'); f.yaw = +(q.get('yaw') || 0.3); }
+v.snap(f); v.update(f, 0.4);
+cam.position.set(0.15, 1.35, 3.9); cam.lookAt(0.05, 1.02, 0);
+renderer.render(scene, cam);
+window.ready = true;
+</script>
