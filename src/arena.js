@@ -44,7 +44,7 @@ function buildGround(group) {
   const plane = new THREE.PlaneGeometry(180, 180, 60, 60);
   plane.rotateX(-Math.PI / 2);
   const pos = plane.attributes.position, col = new Float32Array(pos.count * 3);
-  const grassA = new THREE.Color(0x5d8a3a), grassB = new THREE.Color(0x7aa548), dirt = new THREE.Color(0x8a7550), c = new THREE.Color();
+  const grassA = new THREE.Color(0x5a7d33), grassB = new THREE.Color(0x8a9a42), dirt = new THREE.Color(0x9a7a4c), c = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i), d = Math.hypot(x, z);
     const n = hash(i * 1.7) * 0.6 + (Math.sin(x * 0.23) * Math.cos(z * 0.19) + 1) * 0.2;
@@ -68,7 +68,7 @@ function buildGround(group) {
 }
 
 function buildWall(group) {
-  const n = 72, mat = stoneMat(0x8d8a82), dummy = new THREE.Object3D(), col = new THREE.Color();
+  const n = 72, mat = stoneMat(0xb39c78), dummy = new THREE.Object3D(), col = new THREE.Color();
   const blocks = new THREE.InstancedMesh(new THREE.BoxGeometry(2.42, 1, 1.3), mat, n * 2);
   const caps = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 0.8, 1.3), mat, n);
   blocks.castShadow = blocks.receiveShadow = caps.castShadow = true;
@@ -102,7 +102,7 @@ function buildWall(group) {
 }
 
 function buildObstacles(group) {
-  const stone = stoneMat(0x9a968c), dark = stoneMat(0x77746c), rockMat = stoneMat(0x6f6e69);
+  const stone = stoneMat(0xbfa780), dark = stoneMat(0x97805e), rockMat = stoneMat(0x857763);
   const wood = new THREE.MeshStandardMaterial({ color: 0x7a5a36, roughness: 0.9, flatShading: true });
   const woodDark = new THREE.MeshStandardMaterial({ color: 0x4f3920, roughness: 0.9, flatShading: true });
   OBSTACLES.forEach((o, i) => {
@@ -138,7 +138,7 @@ function buildObstacles(group) {
 
 function buildBackdrop(group) {
   const trunk = new THREE.MeshStandardMaterial({ color: 0x4a3524, roughness: 1, flatShading: true });
-  const leaf = new THREE.MeshStandardMaterial({ color: 0x2f5a2c, roughness: 1, flatShading: true });
+  const leaf = new THREE.MeshStandardMaterial({ color: 0x3d5a2a, roughness: 1, flatShading: true });
   const n = 46, trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.3, 0.45, 4, 6), trunk, n);
   const crowns = new THREE.InstancedMesh(new THREE.ConeGeometry(2.6, 8, 7), leaf, n);
   const d = new THREE.Object3D(), col = new THREE.Color();
@@ -157,14 +157,19 @@ function buildBackdrop(group) {
   // Sky dome with a horizon-to-zenith gradient
   const sky = new THREE.SphereGeometry(300, 24, 12);
   const sp = sky.attributes.position, sc = new Float32Array(sp.count * 3);
-  const top = new THREE.Color(0x4f8fd6), mid = new THREE.Color(0xa9d0ee), low = new THREE.Color(0xdfe9e6), c = new THREE.Color();
+  const top = new THREE.Color(0x5a6f9c), mid = new THREE.Color(0xf0a45c), low = new THREE.Color(0xffd08a), c = new THREE.Color();
   for (let i = 0; i < sp.count; i++) {
     const h = Math.max(0, sp.getY(i) / 300);
-    if (h < 0.18) c.copy(low).lerp(mid, h / 0.18); else c.copy(mid).lerp(top, Math.min(1, (h - 0.18) / 0.6));
+    if (h < 0.1) c.copy(low).lerp(mid, h / 0.1); else c.copy(mid).lerp(top, Math.min(1, (h - 0.1) / 0.45));
     sc.set([c.r, c.g, c.b], i * 3);
   }
   sky.setAttribute('color', new THREE.BufferAttribute(sc, 3));
   group.add(new THREE.Mesh(sky, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false })));
+
+  // The setting sun, sitting where the light comes from
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(46, 32), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, opacity: 0.35, fog: false, depthWrite: false }));
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(13, 32), new THREE.MeshBasicMaterial({ color: 0xfff0c0, fog: false, depthWrite: false }));
+  for (const m of [glow, disc]) { m.position.set(-190, 60, 165); m.lookAt(0, 0, 0); group.add(m); }
 }
 
 export function buildArena() {

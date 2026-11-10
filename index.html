@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+<!-- The Duel. Copyright (c) 2026 Sudhi and Forgeframe. All rights reserved. -->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#14110d">
@@ -9,10 +10,27 @@
 <title>The Duel</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 </head>
 <body>
+<!-- Studio splash: shown once per launch, about two seconds, tap to skip. Same as Dawn of Dynasties. -->
+<div id="studio" onclick="this.classList.add('out')">
+  <div class="glow"><img src="assets/ui/studio_logo.png" alt="Forge Frame" decoding="async"></div>
+  <p>presents</p>
+</div>
+<script>
+  (function () {
+    var s = document.getElementById('studio');
+    var gone = function () { if (s && s.parentNode) s.parentNode.removeChild(s); };
+    s.addEventListener('transitionend', function (e) { if (e.target === s && s.classList.contains('out')) gone(); });
+    var t0 = Date.now(), out = function () { requestAnimationFrame(function () { requestAnimationFrame(function () { s.classList.add('out'); setTimeout(gone, 1200); }); }); };
+    window.addEventListener('load', function () { setTimeout(out, Math.max(300, 2000 - (Date.now() - t0))); });
+    setTimeout(out, 8000);
+  })();
+</script>
 <canvas id="c"></canvas>
 <div id="vignette"></div>
 <div id="flash"></div>
@@ -57,6 +75,7 @@
     </div>
     <button id="start">FIGHT</button>
     <p id="hint">Left thumb moves. Drag the right side to look. Block just before a hit lands to parry.</p>
+    <div class="studio-credit"><img src="assets/ui/studio_mark.png" alt=""><span>A Forge Frame game</span></div>
   </div>
 </div>
 

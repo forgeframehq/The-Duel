@@ -16,15 +16,16 @@ renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.1;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xd3e3e6, 45, 190);
+scene.fog = new THREE.Fog(0xe9b27a, 40, 180);
 const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 500);
 
-scene.add(new THREE.HemisphereLight(0xd6e8ff, 0x55633c, 1.25));
-const sun = new THREE.DirectionalLight(0xfff0d0, 2.6);
-sun.position.set(22, 34, 14);
+// Golden hour, to match the look of Dawn of Dynasties: low warm sun, cool sky fill.
+scene.add(new THREE.HemisphereLight(0xffd9a8, 0x4a4a2c, 1.05));
+const sun = new THREE.DirectionalLight(0xffc27a, 3.0);
+sun.position.set(-30, 20, 26);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 90 });
