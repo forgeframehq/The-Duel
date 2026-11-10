@@ -235,7 +235,9 @@ function updateCamera(dt) {
 // ---------- Menu / flow ----------
 function showMenu(title, result = '') {
   app = 'menu'; input.enabled = false; input.reset();
-  $('menu-title').textContent = title;
+  $('menu-title').textContent = result ? title : '';
+  // The title screen shows the painted artwork and logo; result screens show the arena behind.
+  $('menu').classList.toggle('title', !result);
   $('menu-result').textContent = result;
   $('menu-kicker').textContent = result ? `${fighters[0].name} against ${fighters[1].name}` : 'A one-on-one fight to the last blow';
   $('start').textContent = result ? 'REMATCH' : 'FIGHT';

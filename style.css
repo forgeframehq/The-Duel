@@ -87,6 +87,14 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 
 /* ---------- Menu ---------- */
 #menu, #paused, #rotate { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; }
+#menu.title { background: linear-gradient(180deg, rgba(8, 5, 3, .15) 0%, rgba(8, 5, 3, 0) 40%, rgba(8, 5, 3, .55) 100%), url(assets/ui/title_bg.jpg) center / cover no-repeat #120c07; }
+#menu.title .panel { display: flex; flex-direction: column; align-items: center; height: 100%; padding-top: 1vh; padding-bottom: 2vh; }
+#menu.title #menu-kicker, #menu.title #menu-title, #menu.title #menu-result { display: none; }
+#menu-logo { display: none; height: 50vh; width: auto; max-width: 92vw; object-fit: contain; filter: drop-shadow(0 1vh 2vh rgba(0, 0, 0, .6)); animation: logoIn 1.6s ease-out both; }
+#menu.title #menu-logo { display: block; }
+#menu.title #start { margin-top: auto; height: 17vh; }
+#menu.title #hint { margin-top: 1.5vh; color: #f6e7c4; text-shadow: 0 1px 3px #000; opacity: .9; }
+#menu.title .studio-credit { margin-top: 1.2vh; }
 #menu { background: radial-gradient(ellipse at center, rgba(30, 20, 10, .3), rgba(6, 4, 2, .9)); }
 .panel { width: min(92vw, 150vh); padding: 2vh 3vw; }
 #menu-kicker { font-size: calc(var(--u) * 3); letter-spacing: .34em; text-transform: uppercase; color: var(--gold); }
