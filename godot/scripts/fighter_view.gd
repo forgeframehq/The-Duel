@@ -1,0 +1,265 @@
+class_name FighterView
+extends Node3D
+## One fighter on screen: the body, the weapon in its hand, and the pose for whatever the rules say it is doing.
+## The pose is blended by hand from the shared clips (see Clips.table), each held at an exact moment, the same way
+## build 20 did it: a swing follows the rules' clock, so what you see is exactly when the hit lands.
+
+const MODELS := {"sun_warlord": "res://models/aurelian.glb", "varek": "res://models/varek.glb", "wuixi": "res://models/wuixi.glb"}
+const FOCUS_GLOW := Color(0.25, 0.6, 1.0)
+
+var def: Dictionary
+var weapon: Dictionary
+var skeleton: Skeleton3D
+var bone_ids: PackedInt32Array
+var clips: Dictionary
+var weights := {}      # clip name -> how much of it is showing (0 to 1)
+var times := {}        # clip name -> the moment of the clip being shown
+var started := false
+var last_state := ""
+var last_t := 0.0
+var flinch := "Hit_Reaction_1"
+var hop := false
+var cheer := false
+var focus_mix := 0.0
+var clock := 0.0
+var blade_mat: StandardMaterial3D
+var base_emission := Color.BLACK
+var held: Node3D
+var dropped: Node3D
+var aura: MeshInstance3D
+var tilt: Node3D
+var glow_light: OmniLight3D
+
+func setup(fighter_def: Dictionary) -> FighterView:
+	def = fighter_def
+	weapon = Sim.weapon_of(def.weapon)
+	clips = Clips.table()
+	tilt = Node3D.new(); add_child(tilt)
+	var body: Node3D = (load(MODELS[def.id]) as PackedScene).instantiate()
+	tilt.add_child(body)
+	var old: Node = body.find_child("AnimationPlayer", true, false)
+	if old: old.queue_free()
+	skeleton = body.find_child("Skeleton3D", true, false)
+	bone_ids = PackedInt32Array()
+	for b in Clips.BONES: bone_ids.append(skeleton.find_bone(b))
+
+	blade_mat = StandardMaterial3D.new()
+	blade_mat.albedo_color = Color(0.82, 0.85, 0.88); blade_mat.metallic = 0.9; blade_mat.roughness = 0.25
+	blade_mat.emission_enabled = true
+	if def.weapon == "katana": base_emission = Color(0.35, 0.03, 0.05)
+	elif def.weapon == "divine":
+		blade_mat.albedo_color = Color(0.95, 0.82, 0.4); base_emission = Color(0.5, 0.36, 0.08)
+	blade_mat.emission = base_emission
+	# The hand bone lives in centimetre space; the holder undoes that so the weapon can be built in metres.
+	var hand := BoneAttachment3D.new(); hand.bone_name = "RightHand"; skeleton.add_child(hand)
+	var holder := Node3D.new(); hand.add_child(holder)
+	holder.scale = Vector3.ONE * 100.0
+	held = _build_weapon(def.weapon); held.rotation.x = PI / 4; holder.add_child(held)
+	# A second copy that lies on the ground while the fighter is disarmed.
+	dropped = Node3D.new(); dropped.visible = false; dropped.top_level = true; add_child(dropped)
+	var spare := _build_weapon(def.weapon); spare.rotation = Vector3(0, 0.6, PI / 2); spare.position.y = 0.07; dropped.add_child(spare)
+	var marker := MeshInstance3D.new(); var tm := TorusMesh.new(); tm.inner_radius = 0.5; tm.outer_radius = 0.58; marker.mesh = tm
+	var mm := StandardMaterial3D.new(); mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; mm.albedo_color = Color(1, 0.85, 0.3, 0.8); mm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	marker.material_override = mm; marker.position.y = 0.05; dropped.add_child(marker)
+
+	# The blue light a fighter burns with while charging: the thing a player learns to parry.
+	aura = MeshInstance3D.new(); var cm := CylinderMesh.new(); cm.top_radius = 0.3; cm.bottom_radius = 0.62; cm.height = 2.1; cm.cap_top = false; cm.cap_bottom = false; aura.mesh = cm
+	var am := StandardMaterial3D.new(); am.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; am.albedo_color = Color(0.3, 0.65, 1.0, 0.0)
+	am.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; am.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; am.cull_mode = BaseMaterial3D.CULL_DISABLED
+	aura.material_override = am; aura.position.y = 1.05; aura.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; aura.visible = false; add_child(aura)
+	glow_light = OmniLight3D.new(); glow_light.light_color = FOCUS_GLOW; glow_light.omni_range = 3.5; glow_light.position = Vector3(0, 1.3, 0.5); glow_light.visible = false; add_child(glow_light)
+	return self
+
+func _part(mesh: Mesh, mat: Material, pos: Vector3) -> MeshInstance3D:
+	var m := MeshInstance3D.new(); m.mesh = mesh; m.material_override = mat; m.position = pos; return m
+
+func _std(color: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new(); m.albedo_color = color; m.metallic = metal; m.roughness = rough; return m
+
+## Weapons are built here from simple shapes, pointing along +Y from the grip, in metres.
+func _build_weapon(kind: String) -> Node3D:
+	var g := Node3D.new()
+	var gold := _std(Color(0.85, 0.7, 0.35), 0.7, 0.3)
+	var cyl := func(r: float, h: float) -> CylinderMesh:
+		var c := CylinderMesh.new(); c.top_radius = r; c.bottom_radius = r; c.height = h; c.radial_segments = 10; return c
+	var box := func(x: float, y: float, z: float) -> BoxMesh:
+		var b := BoxMesh.new(); b.size = Vector3(x, y, z); return b
+	if kind == "katana":
+		# A long slender blade with a gentle backward curve, a round guard and a grip bound in crimson.
+		var n := 9
+		var length := 0.74
+		for i in n:
+			var t0 := float(i) / n
+			var t1 := float(i + 1) / n
+			var z0 := -0.07 * t0 * t0
+			var z1 := -0.07 * t1 * t1
+			var seg := _part(box.call(0.005, length / n * 1.04, 0.03 * (1.0 - t0 * 0.12) * (1.0 if i < n - 1 else 0.6)), blade_mat, Vector3(0, 0.15 + (t0 + t1) / 2 * length, (z0 + z1) / 2))
+			seg.rotation.x = atan2(z1 - z0, length / n)
+			g.add_child(seg)
+		var guard := _part(cyl.call(0.05, 0.008), _std(Color(0.14, 0.1, 0.08), 0.4, 0.5), Vector3(0, 0.142, 0)); g.add_child(guard)
+		g.add_child(_part(cyl.call(0.017, 0.27), _std(Color(0.56, 0.08, 0.12), 0, 0.8), Vector3.ZERO))
+		g.add_child(_part(cyl.call(0.02, 0.024), gold, Vector3(0, -0.145, 0)))
+	elif kind == "divine":
+		# Dawnbreaker: a broad blade of pale gold with a winged guard and a sun at its heart.
+		g.add_child(_part(box.call(0.016, 0.84, 0.1), blade_mat, Vector3(0, 0.57, 0)))
+		g.add_child(_part(box.call(0.02, 0.62, 0.02), gold, Vector3(0, 0.5, 0)))
+		g.add_child(_part(cyl.call(0.022, 0.22), _std(Color(0.95, 0.93, 0.88), 0.3, 0.4), Vector3.ZERO))
+		g.add_child(_part(box.call(0.04, 0.04, 0.34), gold, Vector3(0, 0.14, 0)))
+		var gem := SphereMesh.new(); gem.radius = 0.035; gem.height = 0.07
+		var gm := _std(Color(1, 0.96, 0.78)); gm.emission_enabled = true; gm.emission = Color(1, 0.84, 0.4); gm.emission_energy_multiplier = 2.0
+		g.add_child(_part(gem, gm, Vector3(0, 0.15, 0)))
+		g.add_child(_part(gem, gold, Vector3(0, -0.15, 0)))
+	else:
+		g.add_child(_part(cyl.call(0.02, 0.2), _std(Color(0.29, 0.2, 0.12)), Vector3.ZERO))
+		var pm := SphereMesh.new(); pm.radius = 0.035; pm.height = 0.07; g.add_child(_part(pm, gold, Vector3(0, -0.12, 0)))
+		g.add_child(_part(box.call(0.035, 0.035, 0.24), gold, Vector3(0, 0.11, 0)))
+		g.add_child(_part(box.call(0.014, 0.88, 0.07), blade_mat, Vector3(0, 0.56, 0)))
+	return g
+
+func _show(want: Dictionary, clip: String, time: float, weight := 1.0) -> void:
+	if not clips.has(clip): return
+	want[clip] = weight; times[clip] = time
+
+func _loop(want: Dictionary, clip: String, weight: float, rate: float, dt: float) -> void:
+	if not clips.has(clip): return
+	want[clip] = weight
+	times[clip] = fposmod(times.get(clip, 0.0) + dt * rate, clips[clip].length)
+
+## Decide which clips should be showing, and where in each, for the fighter's current state.
+func _pose(f: Dictionary, dt: float) -> void:
+	var want := {}
+	var speed := Sim.hyp(f.vx, f.vz)
+	var fwd: float = f.vx * sin(f.yaw) + f.vz * cos(f.yaw)
+	var fade := 12.0
+	if cheer and f.state != "dead":
+		_loop(want, "victory", 1.0, 1.0, dt); fade = 6.0
+	else:
+		match f.state:
+			"air":
+				# Knocked into the air: the clip rises, hangs and comes down across the time spent airborne.
+				_show(want, "BeHit_FlyUp", 0.02 + min(1.0, f.t / f.airDur) * 0.6); fade = 40.0
+			"down":
+				_show(want, "Stand_Up1", 1.0 + f.t)
+			"getup":
+				_show(want, "Stand_Up1", 4.35 + min(1.0, f.t / 0.7) * 1.6); fade = 30.0
+			"attack":
+				var a: Dictionary = f.atk
+				var an: Array = a.anim
+				var t: float = an[1] + (an[2] - an[1]) * (f.t / a.windup) if f.t < a.windup else an[2] + (an[3] - an[2]) * min(1.0, (f.t - a.windup) / (a.active + a.recover))
+				# Blend in a touch slower at the very start of a swing, so one move flows into the next instead of snapping.
+				_show(want, an[0], t); fade = 16.0 if f.t < 0.08 else 24.0
+			"charge":
+				# Wound back and held, trembling, until the button is let go.
+				var atk: Dictionary = weapon.focusH if f.charge == "h" else weapon.focusV
+				var e: float = min(1.0, f.t / 0.28)
+				_show(want, atk.anim[0], atk.hold - 0.3 * (1 - e) + sin(f.t * 55) * 0.012 * min(1.0, f.t / 0.6)); fade = 16.0
+			"guard":
+				# Weapon raised across the body and held there. A blow landing on it jolts it back for a moment.
+				var jolt: float = (f.guardRest - 1.05) * 1.6 if f.guardRest > 1.05 else 0.0
+				_show(want, "Sword_Parry_Backward", 0.1 + min(1.0, f.t / 0.14) * 0.3 + jolt); fade = 34.0
+			"dodge":
+				# Dodging straight back is a hop that keeps the fighter facing the enemy; any other way is a roll.
+				hop = f.ddx * sin(f.yaw) + f.ddz * cos(f.yaw) < -0.6
+				if hop:
+					_show(want, "Back_Jump", 0.06 + min(1.0, f.t / 0.55) * 0.86); fade = 34.0
+				else:
+					_show(want, "Roll_Dodge", 0.32 + min(1.0, f.t / 0.55) * 1.3); fade = 30.0
+			"stagger":
+				# Two different flinches, picked each time a new hit lands, so repeated hits do not look identical.
+				if last_state != "stagger" or f.t < last_t: flinch = "Hit_Reaction_1" if randf() < 0.5 else "Hit_Reaction_to_Waist"
+				var clip: String = "Hit_Reaction" if f.parried else flinch
+				var length: float = 1.3 if f.parried else (0.85 if clip == "Hit_Reaction_1" else 1.2)
+				_show(want, clip, min(1.0, f.t / f.staggerDur) * length); fade = 25.0
+			"dead":
+				if f.floored: _show(want, "Stand_Up1", 1.6)      # killed while already on the ground: stays there
+				elif f.launched:
+					_show(want, "Knock_Down", min(2.4, 0.15 + f.t * 1.25)); fade = 30.0   # flung off their feet by a charged strike
+				else:
+					_show(want, "Shot_and_Fall_Backward", min(clips["Shot_and_Fall_Backward"].length - 0.05, 0.7 + f.t * 1.5)); fade = 14.0
+			_:
+				# Standing guard, a fighting walk and a run, blended by how fast the fighter is moving.
+				var stand: float = max(0.0, 1 - speed / 1.1)
+				var run_w: float = clampf((speed - 2.8) / 1.6, 0, 1)
+				var walk: float = max(0.0, 1 - stand - run_w)
+				var backing: bool = fwd < -0.4 * speed
+				_loop(want, "Combat_Stance", stand, 1.0, dt)
+				# Backing away has a walk of its own, sword still up, rather than the forward walk played in reverse.
+				if backing: _loop(want, "Walk_Backward_with_Sword", walk + run_w, clampf(speed / 1.5, 0.7, 2.2), dt)
+				else:
+					_loop(want, "Walk_Fight_Forward", walk, clampf(speed / 1.7, 0.6, 1.8), dt)
+					_loop(want, "Run_02", run_w, clampf(speed / 4.6, 0.55, 1.6), dt)
+	last_state = f.state; last_t = f.t
+	var k: float = min(1.0, fade * dt)
+	for clip in want:
+		if not weights.has(clip): weights[clip] = 0.0
+	for clip in weights.keys():
+		var w: float = weights[clip] + (want.get(clip, 0.0) - weights[clip]) * k
+		if w < 0.002 and not want.has(clip): weights.erase(clip)
+		else: weights[clip] = w
+	_apply()
+
+## Blend the showing clips, bone by bone, onto the skeleton.
+func _apply() -> void:
+	var names := weights.keys()
+	if names.is_empty(): return
+	for i in bone_ids.size():
+		var bone := bone_ids[i]
+		if bone < 0: continue
+		var q := Quaternion.IDENTITY
+		var total := 0.0
+		for clip in names:
+			var c: Dictionary = clips[clip]
+			var track: int = c.rot[i]
+			var w: float = weights[clip]
+			if track < 0 or w <= 0.0: continue
+			var r: Quaternion = c.anim.rotation_track_interpolate(track, clampf(times[clip], 0.0, c.length))
+			total += w
+			q = r if total == w else q.slerp(r, w / total)
+		if total > 0.0: skeleton.set_bone_pose_rotation(bone, q)
+	# the hips are the only bone that also moves (bobbing, crouching, falling)
+	var hips := bone_ids[0]
+	var p := Vector3.ZERO
+	var total_p := 0.0
+	for clip in names:
+		var c: Dictionary = clips[clip]
+		if c.hips < 0: continue
+		var w: float = weights[clip]
+		p += c.anim.position_track_interpolate(c.hips, clampf(times[clip], 0.0, c.length)) * w; total_p += w
+	if total_p > 0.0: skeleton.set_bone_pose_position(hips, p / total_p)
+
+func update(f: Dictionary, dt: float) -> void:
+	if not started:
+		position = Vector3(f.x, 0, f.z); rotation.y = f.yaw; started = true
+	var k: float = min(1.0, 28 * dt)
+	position.x += (f.x - position.x) * k; position.z += (f.z - position.z) * k
+	# Knocked into the air, the body rises and comes back down.
+	position.y = sin(min(1.0, f.t / f.airDur) * PI) * Sim.AIR_HEIGHT * 0.6 if f.state == "air" else lerpf(position.y, 0.0, min(1.0, 20 * dt))
+	# While rolling, the body points the way it is travelling, not at the enemy.
+	var rolling: bool = f.state == "dodge" and not (f.ddx * sin(f.yaw) + f.ddz * cos(f.yaw) < -0.6)
+	var body_yaw: float = atan2(f.ddx, f.ddz) if rolling else f.yaw
+	rotation.y += Sim.ang_diff(rotation.y, body_yaw) * min(1.0, 22 * dt)
+	_pose(f, dt)
+
+	# A charging weapon burns blue, brighter the longer it is held, and stays lit until the strike has landed.
+	var striking: bool = f.state == "attack" and f.atk.focus and not f.atk.skill and f.t < f.atk.windup + f.atk.active
+	var focus: float = 0.35 + 0.65 * smoothstep(0.0, 1.0, f.t / 0.9) if f.state == "charge" else (1.0 if striking else 0.0)
+	focus_mix += (focus - focus_mix) * min(1.0, 14 * dt)
+	clock += dt
+	blade_mat.emission = base_emission.lerp(FOCUS_GLOW, min(1.0, focus_mix * 1.5))
+	blade_mat.emission_energy_multiplier = 1.0 + focus_mix * 5.0
+	aura.visible = focus_mix > 0.02
+	(aura.material_override as StandardMaterial3D).albedo_color.a = focus_mix * (0.13 + 0.05 * sin(clock * 16))
+	glow_light.light_energy = focus_mix * 3.0; glow_light.visible = focus_mix > 0.02
+	var grow := 1 + 0.12 * sin(clock * 9)
+	aura.scale = Vector3(grow, 1, grow)
+
+	held.visible = not f.disarmed
+	dropped.visible = f.disarmed
+	if f.disarmed:
+		dropped.global_position = Vector3(f.dropX, 0, f.dropZ)
+		dropped.get_child(1).scale = Vector3.ONE * (1 + 0.18 * sin(clock * 7))
+
+## Jump straight to the fighter's current state with no blending (round start).
+func snap(f: Dictionary) -> void:
+	started = false; weights.clear(); focus_mix = 0.0; cheer = false
+	update(f, 1.0)

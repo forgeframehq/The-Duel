@@ -56,3 +56,23 @@ static func _convert(src: Animation, clip_name: String) -> Animation:
 				# pin the hips over the feet (falls keep their travel, measured from where they start)
 				out.position_track_insert_key(track, time, Vector3(p.x - first.x if free_root else 0.0, p.y, p.z - first.z if free_root else 0.0))
 	return out
+
+static var _table: Dictionary
+
+## Every clip by name, ready for sampling by hand: { anim, length, rot: [track per BONES entry, or -1], hips: track or -1 }.
+## FighterView reads bone rotations straight from these and blends them itself, which lets it hold a clip at an exact moment
+## (a swing is driven by the rules' clock, not by playback).
+static func table() -> Dictionary:
+	if not _table.is_empty(): return _table
+	var lib := library()
+	for clip_name in lib.get_animation_list():
+		var anim := lib.get_animation(clip_name)
+		var rot := []
+		rot.resize(BONES.size()); rot.fill(-1)
+		var hips := -1
+		for t in anim.get_track_count():
+			var bone := str(anim.track_get_path(t)).get_slice(":", 1)
+			if anim.track_get_type(t) == Animation.TYPE_ROTATION_3D: rot[BONES.find(bone)] = t
+			else: hips = t
+		_table[str(clip_name)] = {"anim": anim, "length": anim.length, "rot": rot, "hips": hips}
+	return _table

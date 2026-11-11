@@ -2,6 +2,33 @@
 
 Read this first in a new chat. It replaces the long conversation that built the game so far.
 
+## 0. Godot edition (started 11 Nov 2026, the way forward)
+
+Sudhi decided: everything through AI, open-source and free tools only, no filming himself, move to **Godot 4**. The web edition (build 20, sections below) stays as it is; new work goes into `godot/`.
+
+**State: Godot build 0.2, first playable.** Release tag `godot-v0.2`, file `The-Duel-Godot-0.2.apk`. It installs beside the web game as "The Duel (Godot)" (package `com.forgeframe.theduel.godot`). Test build 0.1 (Wuixi standing in a scene) was sent first to prove an APK loads on his phone; **he has not yet confirmed that either build opens** (his earlier Godot attempt with another AI never loaded, so this is the thing to ask about first).
+
+What 0.2 has: menu (pick Aurelian, Varek or Wuixi, Easy/Normal/Hard, Graphics High/Low), a best-of-three match against a random other fighter in the Whispering Meadow, build 20's fighting rules unchanged, touch stick and five see-through buttons, bars, sounds and music from the web edition, hit sparks, hit-stop, camera shake, result screen.
+
+What 0.2 does not have yet: the Quaternius animations (still the Meshy clips; retargeting not started), obstacles in the arena (open ring, R 22), spear/mace fighters, the weapon tumbling when disarmed (it just appears on the ground), settings beyond Graphics, a photographed sky and ground textures (waiting for him to attach a Poly Haven 2K HDR sky and ambientCG 1K-JPG grass/dirt; `res://sky/sky.hdr` is picked up automatically if present). Not measured on a phone: frame rate with 150,000 grass blades and two 150,000-triangle fighters (Graphics: Low cuts grass to a third, turns shadows off and draws 3D at 70%).
+
+**How it is built**
+- `godot/project.godot`: Godot 4.4.1, `gl_compatibility` renderer, landscape, 1280×576 stretched. Version in `config/version` (bump it for every APK; also `VERSION` in `main.gd`, shown on the menu).
+- `.github/workflows/godot-android.yml`: runs when the commit message contains `[godot]`. Downloads Godot and export templates, imports, exports a debug APK signed with the committed `godot/debug.keystore` (so each APK installs over the last), publishes release `godot-v<version>`. On failure the log goes to the `ci-logs` branch. A build takes about 5 minutes.
+- `godot/data/rules.json`: weapons, specials, difficulty levels and the three fighters, **exported from the web edition** by `node tools/dev/godot_rules.mjs` (it imports `src/weapons.js`, `skills.js`, `ai.js`, `roster.js` and writes JSON with every attack flag filled in). Change numbers there, or re-export.
+- `godot/scripts/sim.gd` (`Sim`): the rules, a line-for-line port of `src/sim.js` minus obstacles. Fighters and commands are Dictionaries with the same field names as the web edition.
+- `godot/scripts/rival.gd` (`Rival`): the computer opponent, port of `src/ai.js`.
+- `godot/tests/rules.gd`: the 32 rule checks plus rival-vs-rival matches. Run `godot --headless --path godot --script res://tests/rules.gd`. All pass; Hard beats Normal 20 to 10, Normal beats Easy 25 to 5.
+- `godot/scripts/clips.gd` (`Clips`): turns the two body-less animation files into clips for the shared 24-bone skeleton; `Clips.table()` gives per-bone tracks for sampling by hand.
+- `godot/scripts/fighter_view.gd` (`FighterView`): model, weapon built from simple shapes, and the pose. It blends clips itself (weights and times per clip, slerp per bone, `set_bone_pose_rotation`), no AnimationPlayer, so a swing is held to the rules' clock exactly as in build 20. Blue glow: blade, a faint aura and a blue light.
+- `godot/scripts/arena.gd` (`Arena`): sky, sun, ground shader with hills (`height_at` matches it on the CPU), 150,000 wind-blown grass blades (MultiMesh) that lean away from fighters, Meshy trees, boulders, pavilion and huts.
+- `godot/scripts/touch_pad.gd`, `hud.gd`, `main.gd`: controls, overlay, and the game loop (menu, match, camera, sounds, effects).
+- Godot cannot read meshopt-compressed .glb files: convert with `/tmp/gt/plain.mjs` (gltf-transform: dequantize, drop meshopt) before copying into `godot/`.
+
+**Checking it here:** Godot binary at `/tmp/godot/Godot_v4.4.1-stable_linux.x86_64` (download from the GitHub release if the sandbox is new). Screenshots: `DUEL_SHOT=/tmp/x.png DUEL_SHOT_AT=5,8 DUEL_AUTO=1 xvfb-run -a -s "-screen 0 1280x576x24" godot --path godot --rendering-driver opengl3 --audio-driver Dummy` (`DUEL_AUTO` lets the rival play both sides, `DUEL_START` starts a match with the touch pad showing). About 2 frames a second, so motion cannot be judged here, only still frames.
+
+**Next for Godot, in order:** hear from him whether 0.2 opens and how it runs and feels; fix what he reports; retarget the Quaternius sword clips (Sword_Regular_A/B/C, Sword_Heavy_Combo, Sword_Block, Sword_Dash, Roll, Hit_Knockback) onto the Meshy rig and use them; sky and ground textures when he attaches them; then the open list below.
+
 ## 1. What this is
 
 **The Duel** is a landscape-only, third-person 1v1 weapon-fighting game for Android, made by Sudhi (ForgeFrame studio). It runs in the browser (Three.js) and is wrapped as an APK.

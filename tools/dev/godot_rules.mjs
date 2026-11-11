@@ -1,0 +1,13 @@
+import { WEAPONS } from '../../src/weapons.js';
+import { SKILLS } from '../../src/skills.js';
+import { DIFFICULTY } from '../../src/ai.js';
+import { ROSTER } from '../../src/roster.js';
+import fs from 'fs';
+const FLAGS = ['focus','heavy','skill','dash','armed','launch','slam','ender','solo','ground','kick','guardBreak'];
+const fix = (a) => { const o = { ...a }; for (const k of FLAGS) o[k] = !!o[k]; o.title = o.title || ''; o.back = o.back || 0; o.hold = o.hold || 0; return o; };
+const W = {};
+for (const [id, w] of Object.entries(WEAPONS)) W[id] = { label: w.label, h: w.h.map(fix), v: w.v.map(fix), strings: Object.fromEntries(Object.entries(w.strings).map(([k, a]) => [k, fix(a)])), dir: Object.fromEntries(Object.entries(w.dir).map(([k, a]) => [k, fix(a)])), launch: fix(w.launch), focusH: fix(w.focusH), focusV: fix(w.focusV), riposte: fix(w.riposte) };
+const S = {};
+for (const [id, s] of Object.entries(SKILLS)) S[id] = { name: s.name, buff: s.buff || 0, atk: s.atk ? fix(s.atk) : null };
+const R = ROSTER.slice(0, 3).map((r) => ({ id: r.id, name: r.name, short: r.short, origin: r.origin, weapon: r.weapon, skill: r.skill, blurb: r.blurb, stats: { ...r.stats, weapon: r.weapon, skill: r.skill } }));
+fs.writeFileSync(new URL('../../godot/data/rules.json', import.meta.url), JSON.stringify({ weapons: W, skills: S, difficulty: DIFFICULTY, roster: R }, null, 1));
