@@ -71,7 +71,7 @@ jobs:
           name: the-duel-godot-apk
           path: build/*.apk
       - uses: softprops/action-gh-release@v2
-        if: contains(github.event.head_commit.message, '[godot]')
+        if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[godot]')
         with:
           tag_name: godot-v${{ env.VERSION }}
           name: The Duel (Godot) ${{ env.VERSION }}
