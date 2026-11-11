@@ -26,7 +26,7 @@ function part(geo, mat, x = 0, y = 0, z = 0) { const m = new THREE.Mesh(geo, mat
 // The characters are painted with magenta wherever cloth should take the team colour
 // (the same convention Dawn of Dynasties uses). Repaint those pixels once per fighter.
 const dyeCache = new Map();
-export function dye(material, team, key) {
+export function dye(material, team, key, cloth = 'magenta') {
   const map = material.map;
   if (!map || !map.image) return;
   const id = key + ':' + team;
@@ -39,9 +39,9 @@ export function dye(material, team, key) {
     const tr = c.r * 255, tg = c.g * 255, tb = c.b * 255;
     for (let i = 0; i < d.length; i += 4) {
       const r = d[i], g = d[i + 1], b = d[i + 2];
-      // magenta: red and blue both well above green
-      const m = Math.min(r, b) - g;
-      if (m > 45 && Math.abs(r - b) < 90) {
+      // magenta: red and blue both well above green. Some fighters are painted with red cloth instead.
+      const m = cloth === 'red' ? r - Math.max(g, b) : Math.min(r, b) - g;
+      if (m > 45 && (cloth === 'red' ? r > 70 : Math.abs(r - b) < 90)) {
         const lum = Math.max(r, b) / 255, k = Math.min(1, (m - 45) / 50);
         d[i] = r + (Math.min(255, tr * lum * 1.9) - r) * k;
         d[i + 1] = g + (Math.min(255, tg * lum * 1.9) - g) * k;
@@ -116,7 +116,7 @@ export class FighterView {
     model.updateMatrixWorld(true);
 
     const bones = {};
-    model.traverse((o) => { if (o.isBone) bones[o.name] = o; if (o.isMesh) dye(o.material, team, def.id); });
+    model.traverse((o) => { if (o.isBone) bones[o.name] = o; if (o.isMesh) dye(o.material, team, def.id, def.cloth); });
     this.bladeMat = std(0xdfe4e8, { metalness: 0.85, roughness: 0.25, emissive: 0xff5a1a, emissiveIntensity: 0 });
     const weapon = buildWeapon(def.weapon, this.bladeMat);
     this.tip = weapon.tip; this.base = weapon.base;

@@ -25,6 +25,10 @@ export const ROSTER = [
   { id: 'franks_king', name: 'The King', origin: 'Franks', weapon: 'sword',
     blurb: 'Every blow is a royal decree. Tires quickly and moves like a monarch.',
     stats: { maxHp: 110, maxStam: 82, power: 1.28, armor: 0.1, speed: 4.0, reach: 0 } },
+  // Made with tools/new_fighter.py: a Meshy body on the shared skeleton. `cloth` says which colour the game re-dyes per team.
+  { id: 'plate_knight', name: 'The Black Knight', origin: 'The Iron Gate', weapon: 'sword', cloth: 'red',
+    blurb: 'Sworn champion of the Iron Gate, sealed in blackened plate from helm to heel. He is slow to reach you and tires early, but blows that would fell another man barely turn his head.',
+    stats: { maxHp: 115, maxStam: 90, power: 1.1, armor: 0.22, speed: 4.0, reach: 0 } },
 ];
 
 export const byId = (id) => ROSTER.find((r) => r.id === id) || ROSTER[0];
