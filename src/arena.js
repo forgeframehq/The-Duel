@@ -29,7 +29,7 @@ const OBSTACLES = [
 
 const SPAWNS = [{ x: 0, z: -17, yaw: 0 }, { x: 0, z: 17, yaw: Math.PI }];
 
-function hash(n) { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }
+export function hash(n) { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }
 
 function stoneMat(color) { return new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true }); }
 
@@ -142,7 +142,7 @@ function buildObstacles(group) {
 const ART = new URL('../assets/scenery/', import.meta.url).href;
 const hillY = (r) => Math.min(9, Math.max(0, r - ARENA_R - 2) * 0.16) * 0.75;
 
-function loadCutout(file, recolor) {
+export function loadCutout(file, recolor) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -165,7 +165,7 @@ function loadCutout(file, recolor) {
   });
 }
 
-function cutout(group, art, angle, r, height, tint = 0xe6bf96) {
+export function cutout(group, art, angle, r, height, tint = 0xe6bf96) {
   if (!art) return;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: art.tex, color: tint, alphaTest: 0.35, transparent: false }));
   sp.center.set(0.5, 0.04);
@@ -193,7 +193,11 @@ async function buildScenery(group) {
 
 function buildBackdrop(group) {
   buildScenery(group);
+  buildSky(group);
+}
 
+// The sunset sky and sun, shared by every arena.
+export function buildSky(group) {
   // Sky dome with a horizon-to-zenith gradient
   const sky = new THREE.SphereGeometry(300, 24, 12);
   const sp = sky.attributes.position, sc = new Float32Array(sp.count * 3);

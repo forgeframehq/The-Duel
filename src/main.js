@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { TICK, ROUNDS_TO_WIN, createWorld, stepWorld, hasLOS, wrapAngle } from './sim.js';
 import { createAI, thinkAI } from './ai.js';
+import { buildCourtyard } from './courtyard.js';
 import { buildArena } from './arena.js';
 import { FighterView } from './fighterView.js';
 import { Particles, Trail, Shake } from './fx.js';
@@ -38,7 +39,9 @@ Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, n
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03;
 scene.add(sun);
 
-const arena = buildArena();
+// The castle courtyard is the arena; the open field is kept as a second map (add ?arena=field to the address).
+const query = new URLSearchParams(location.search);
+const arena = query.get('arena') === 'field' ? buildArena() : buildCourtyard();
 scene.add(arena.group);
 
 // The two fighters on screen. Filled in once their models have loaded.
@@ -435,6 +438,7 @@ function frame(now) {
     if (simDt > 0) trails[i].update(views[i], swinging, swinging && f.atk.heavy);
   });
   particles.update(dt * scale);
+  arena.update?.(dt * scale, now / 1000);
   shake.update(dt);
   updateCamera(dt);
   window.__duel.debug?.(camera);
@@ -448,4 +452,4 @@ setFighters(fighters[0].id, fighters[1].id).then(() => views.forEach((v, i) => v
 requestAnimationFrame(frame);
 
 // Handy for testing from the browser console.
-window.__duel = { get world() { return world; }, get ai() { return ai; }, input, cam, get views() { return views; }, startMatch, setFighters, setLevel: (l) => { level = l; } };
+window.__duel = { renderInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }), get world() { return world; }, get ai() { return ai; }, input, cam, get views() { return views; }, startMatch, setFighters, setLevel: (l) => { level = l; } };
