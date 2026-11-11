@@ -106,7 +106,7 @@ No build step: plain ES modules, Three.js r187 vendored in `vendor/`.
 **A. From his build 17 phone test**
 
 1. **Smoothness:** smooth, but not as smooth as he wants. Find out whether it is frame rate (courtyard weight, graphics-quality setting) or the fighting moves themselves (animation blending, hit reactions), then fix that.
-2. **Attack button arrows:** he did not understand them. Either explain them (a short first-fight how-to, labels) or remove the flicks and rely on the separate buttons.
+2. **Attack button arrows: decided, remove them** (flick gestures and the arrow marks). Under discussion in their place: two attack buttons like Naraka, **Horizontal slash** and **Vertical slash**, where the order you press them makes different attacks (for example H-H-H fast sweep, V-V-V heavy slam, H-H-V launcher, V-V-H wide finisher; hold either for the blue charged strike, which `weapons.js` already has as `focusH` / `focusV`). The Launch button would go, since launching becomes a combo ender. Note the history: builds before 17 had Slash and Chop buttons and he said they "made not much sense", so the two must look and behave clearly differently this time and the combos must be shown in-game. Not agreed yet.
 3. **Parry:** still "didn't do anything" for him. Rethink it so pressing Parry always visibly does something, rather than only working on blue charged strikes. Agree the new design with him first.
 
 **B. Layout faults found by the visual check (build 17)**
