@@ -123,6 +123,11 @@ No build step: plain ES modules, Three.js r187 vendored in `vendor/`.
 - **Parry should also work on normal attacks, as a deflection, without throwing the weapon away.** Reading proposed to him, awaiting his answer: a parry deflects normal hits (no damage, attacker knocked off balance for a moment, no disarm) and still disarms on a blue charged strike.
 - "Can we get the smoothness and fighting of **the stickman fighting game**": he did not say which game. Ask for its name or a video before changing anything, then study how it moves (likely points: faster recoveries, moves that cancel into each other, longer blending between animations, more hit-pause and knock-back).
 
+**More on build 18 (12:51), and "don't build the game yet":**
+
+- **Bug, confirmed in the code: taps turn into charged strikes.** He reported that Horizontal and Vertical "basically only did one thing... a blue circle and a heavy attack" and that there were no quick attacks. Cause: `CHARGE_AFTER = 0.12` in `sim.js`. A press still held 0.12 s into a swing becomes a charge, and a thumb tap on glass usually lasts 0.1 to 0.2 s, so most of his taps charged. The test browser never showed it because the tests press for one tick. Fix for the next build: only charge if the button is still down much later (about 0.3 s), which means the hold must be judged from the press itself, not from inside the swing's wind-up (wind-ups are only 0.22 to 0.3 s); also consider making the first hits come out faster. Add a test that holds the button for 0.15 s and expects a normal attack. Builds 18 and 19 both have this bug, so he has not really played the strings yet.
+- **The stickman game:** he said "just search stickman you will find it". A search turns up dozens (Supreme Duelist Stickman, Stick Fight: Shadow Warrior, Stickman Legends, Shadow Fight and others), so it is still not identified. Asked him to pick from names or send a screenshot.
+
 Done in build 18: the arrows, the two-button strings, the disarming parry, see-through icon buttons, arena choice, quieter music, the frame cap, and the layout faults. Still open from that feedback:
 
 1. **Smoothness:** he said build 17 was "smooth but not smooth as we wanted". Build 18 adds the frame cap; ask whether it is frame rate or the moves themselves that feel off.
