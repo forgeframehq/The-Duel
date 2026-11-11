@@ -116,6 +116,13 @@ No build step: plain ES modules, Three.js r187 vendored in `vendor/`.
 
 ### Next build list (collecting; build when Sudhi says go)
 
+**His feedback on build 18 (11 Nov, 12:43, sent while build 19 was being made; he had not seen build 19):**
+
+- "The game screen was still this, not what we planned": he expected the **Naraka-style hero select screen** (item 13) and got the old card grid. This is now the top request.
+- "Game play was better, but fighting could be a lot better."
+- **Parry should also work on normal attacks, as a deflection, without throwing the weapon away.** Reading proposed to him, awaiting his answer: a parry deflects normal hits (no damage, attacker knocked off balance for a moment, no disarm) and still disarms on a blue charged strike.
+- "Can we get the smoothness and fighting of **the stickman fighting game**": he did not say which game. Ask for its name or a video before changing anything, then study how it moves (likely points: faster recoveries, moves that cancel into each other, longer blending between animations, more hit-pause and knock-back).
+
 Done in build 18: the arrows, the two-button strings, the disarming parry, see-through icon buttons, arena choice, quieter music, the frame cap, and the layout faults. Still open from that feedback:
 
 1. **Smoothness:** he said build 17 was "smooth but not smooth as we wanted". Build 18 adds the frame cap; ask whether it is frame rate or the moves themselves that feel off.
