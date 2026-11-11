@@ -29,6 +29,12 @@ What it does not have yet: the Quaternius animations (still the Meshy clips; ret
 - **Grass redone** after his "I even preferred the low one": 110,000 short blades close to the ground's own colour and lit as one surface (blades were going black on their back faces). Graphics Low = 35,000 blades, no shadows, 70% resolution: now a speed setting, not a different look.
 - Test tools in `main.gd`: `DUEL_STRIP="Clip,Clip@0.5-1.2"` draws clips as rows of six moments; `DUEL_PICK=0..2` picks the fighter; `tests/grip.gd` measures where the blade points at each attack's impact.
 
+**His feedback on 0.4 (11 Nov, 18:52), "don't make game yet": collect, build only when he says go.**
+- "Fighting is much better."
+- **Try the mocap sword combo on Wuixi** (`KBS_Sword_ATK_Combo_01_001_IP`, hand-speed peaks at 0.73, 1.53, 2.5 and 3.93 s; already baked).
+- **A setting at the start to change the camera angle** (the web edition had Classic, Shoulder, Wide, Side-on; Godot has one fixed camera, `CAM` in `main.gd`).
+- **He does not like the colouring** and asked Claude's opinion. Claude's view, from his screenshot: washed out. Pale milky haze over everything, one flat green from foreground to hills, sky blown to white, shadows grey instead of dark, no warm light against cool shade. Offered: less haze, deeper contrast, richer and more varied greens, warm sun with cooler shadows, a colour grade, slight darkening at the screen edges; asked whether he wants bright and vivid or dark and moody (the Naraka screenshot he sent earlier was golden and moody). Awaiting his answer.
+
 **How it is built**
 - `godot/project.godot`: Godot 4.4.1, `gl_compatibility` renderer, landscape, 1280×576 stretched. Version in `config/version` (bump it for every APK; also `VERSION` in `main.gd`, shown on the menu).
 - `.github/workflows/godot-android.yml`: runs when the commit message contains `[godot]`, or when started by hand (`gh api -X POST repos/forgeframehq/The-Duel/actions/workflows/godot-android.yml/dispatches -f ref=main`; on 11 Nov GitHub left pushes queued for 40 minutes and a manual start got through). Downloads Godot and export templates, imports, exports a debug APK signed with the committed `godot/debug.keystore` (so each APK installs over the last), publishes release `godot-v<version>`. On failure the log goes to the `ci-logs` branch. A build takes about 5 minutes.
