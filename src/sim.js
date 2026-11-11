@@ -11,7 +11,7 @@ import { weaponOf } from './weapons.js';
 export const TICK = 1 / 60;
 export const ROUND_TIME = 99;
 export const ROUNDS_TO_WIN = 2;
-export const DODGE_TIME = 0.4;
+export const DODGE_TIME = 0.55;
 // Hold an attack button this long into a swing and it becomes a charge instead.
 export const CHARGE_AFTER = 0.12;
 export const MIN_CHARGE = 0.3;    // a charge must be held at least this long before it can be released
@@ -163,7 +163,7 @@ function startDodge(f, cmd, w) {
   return true;
 }
 
-export function dodgeInvulnerable(f) { return f.state === 'dodge' && f.t >= 0.03 && f.t <= 0.28; }
+export function dodgeInvulnerable(f) { return f.state === 'dodge' && f.t >= 0.03 && f.t <= 0.38; }
 // While charging and while the charged strike is coming out, normal attacks cannot stop a fighter.
 export function armored(f) { return f.state === 'charge' || (f.state === 'attack' && f.atk.focus && f.t < f.atk.windup + f.atk.active); }
 export function parrying(f) { return f.state === 'parry' && f.t >= PARRY.start && f.t <= PARRY.end; }
@@ -257,7 +257,7 @@ function updateFighter(f, cmd, other, w) {
       break;
     }
     case 'dodge': {
-      const k = 1 - f.t / DODGE_TIME, sp = 10.5 * (0.35 + 0.65 * k);
+      const k = 1 - f.t / DODGE_TIME, sp = 8.8 * (0.35 + 0.65 * k);
       f.vx = f.ddx * sp; f.vz = f.ddz * sp; accel = 0;
       if (cmd.faceYaw != null) f.yaw = turnToward(f.yaw, cmd.faceYaw, 6 * dt);
       if (f.t >= DODGE_TIME) { f.state = 'idle'; f.t = 0; }
@@ -341,7 +341,7 @@ function applyHit(a, b, atk, w) {
   const info = { type: 'hit', id: a.id, target: b.id, dmg, heavy: !!atk.focus, backstab, riposte, punish, x: px, z: pz };
   b.hp -= dmg;
   if (b.hp <= 0) {
-    b.hp = 0; b.state = 'dead'; b.t = 0; b.charge = null; b.vx = nx * atk.knock; b.vz = nz * atk.knock;
+    b.hp = 0; b.state = 'dead'; b.t = 0; b.charge = null; b.launched = !!atk.focus; b.vx = nx * atk.knock; b.vz = nz * atk.knock;
     w.events.push({ ...info, kill: true });
   } else {
     stagger(b, atk.stagger, nx * atk.knock, nz * atk.knock);

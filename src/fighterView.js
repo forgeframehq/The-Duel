@@ -190,11 +190,8 @@ export class FighterView {
       this.actions[name] = a; this.weights[name] = 0;
     };
     const sub = (clip, tag, keep) => new THREE.AnimationClip(clip.name + tag, clip.duration, clip.tracks.filter((t) => keep(t.name.slice(0, t.name.lastIndexOf('.')))));
-    const need = new Set(['Combat_Stance', 'Run_02', 'Block2', 'Hit_Reaction_1', 'Hit_Reaction', 'Shot_and_Fall_Backward', 'Sword_Parry', ...clipsUsed]);
+    const need = new Set(['Combat_Stance', 'Run_02', 'Hit_Reaction_1', 'Hit_Reaction', 'Shot_and_Fall_Backward', 'Sword_Parry', 'Walk_Fight_Forward', 'Roll_Dodge', 'Hit_Reaction_to_Waist', 'Knock_Down', ...clipsUsed]);
     for (const name of need) add(name, clips.get(name));
-    add('Combat_Stance#lower', sub(clips.get('Combat_Stance'), '#lower', (b) => LOWER.has(b)));
-    add('Run_02#lower', sub(clips.get('Run_02'), '#lower', (b) => LOWER.has(b)));
-    add('Block2#upper', sub(clips.get('Block2'), '#upper', (b) => !LOWER.has(b)));
     this.started = false; this.fallDur = clips.get('Shot_and_Fall_Backward').duration;
   }
 
@@ -207,9 +204,12 @@ export class FighterView {
     const runRate = Math.max(0.55, Math.min(1.6, speed / 4.6)) * (fwd < -0.4 * speed ? -1 : 1);
     let fade = 12;
 
-    const loco = (suffix) => {
-      want['Combat_Stance' + suffix] = 1 - run; want['Run_02' + suffix] = run;
-      A['Combat_Stance' + suffix].timeScale = 1; A['Run_02' + suffix].timeScale = runRate;
+    // Standing guard, a fighting walk and a run, blended by how fast the fighter is moving.
+    const loco = () => {
+      const stand = Math.max(0, 1 - speed / 1.1), runW = Math.max(0, Math.min(1, (speed - 2.8) / 1.6)), walk = Math.max(0, 1 - stand - runW);
+      want.Combat_Stance = stand; want.Walk_Fight_Forward = walk; want.Run_02 = runW;
+      A.Combat_Stance.timeScale = 1; A.Run_02.timeScale = runRate;
+      A.Walk_Fight_Forward.timeScale = Math.max(0.6, Math.min(1.8, speed / 1.7)) * (fwd < -0.4 * speed ? -1 : 1);
     };
 
     switch (f.state) {
@@ -230,21 +230,27 @@ export class FighterView {
         want.Sword_Parry = 1; A.Sword_Parry.timeScale = 0; A.Sword_Parry.time = 0.12 + Math.min(1, f.t / 0.72) * 1.05; fade = 30;
         break;
       case 'dodge':
-        want.Run_02 = 1; A.Run_02.timeScale = 2.2; fade = 25;
+        // A roll, played across the length of the dodge. The body turns to face the way it is going (see update).
+        want.Roll_Dodge = 1; A.Roll_Dodge.timeScale = 0; A.Roll_Dodge.time = 0.32 + Math.min(1, f.t / 0.55) * 1.3; fade = 30;
         break;
       case 'stagger': {
-        const clip = f.parried ? 'Hit_Reaction' : 'Hit_Reaction_1', len = f.parried ? 1.3 : 0.85;
+        // Two different flinches, picked each time a new hit lands, so repeated hits do not look identical.
+        if (this.lastState !== 'stagger' || f.t < this.lastT) this.flinch = Math.random() < 0.5 ? 'Hit_Reaction_1' : 'Hit_Reaction_to_Waist';
+        const clip = f.parried ? 'Hit_Reaction' : this.flinch, len = f.parried ? 1.3 : clip === 'Hit_Reaction_1' ? 0.85 : 1.2;
         want[clip] = 1; A[clip].timeScale = 0; A[clip].time = Math.min(1, f.t / f.staggerDur) * len; fade = 25;
         break;
       }
       case 'dead': {
+        // Killed by a charged strike, a fighter is flung off their feet; otherwise they fall where they stand.
+        if (f.launched) { want.Knock_Down = 1; A.Knock_Down.timeScale = 0; A.Knock_Down.time = Math.min(2.4, 0.15 + f.t * 1.25); fade = 30; break; }
         const clip = 'Shot_and_Fall_Backward';
         want[clip] = 1; A[clip].timeScale = 0; A[clip].time = Math.min(this.fallDur - 0.05, 0.7 + f.t * 1.5); fade = 14;
         break;
       }
-      default: loco('');
+      default: loco();
     }
 
+    this.lastState = f.state; this.lastT = f.t;
     const k = Math.min(1, fade * dt);
     for (const name in A) {
       const w = this.weights[name] += ((want[name] || 0) - this.weights[name]) * k;
@@ -257,7 +263,9 @@ export class FighterView {
     if (!this.started) { r.position.set(f.x, 0, f.z); r.rotation.y = f.yaw; this.started = true; }
     const k = Math.min(1, 28 * dt);
     r.position.x += (f.x - r.position.x) * k; r.position.z += (f.z - r.position.z) * k;
-    let d = f.yaw - r.rotation.y;
+    // While rolling, the body points the way it is travelling, not at the enemy.
+    const bodyYaw = f.state === 'dodge' ? Math.atan2(f.ddx, f.ddz) : f.yaw;
+    let d = bodyYaw - r.rotation.y;
     while (d > Math.PI) d -= Math.PI * 2;
     while (d < -Math.PI) d += Math.PI * 2;
     r.rotation.y += d * Math.min(1, 22 * dt);
@@ -267,7 +275,7 @@ export class FighterView {
 
     // Lean into a dodge.
     let bx = 0, bz = 0;
-    if (f.state === 'dodge') {
+    if (f.state === 'dodge' && !this.actions.Roll_Dodge) {
       const lean = Math.sin(Math.min(1, f.t / 0.4) * Math.PI) * 0.5;
       const fwd = f.ddx * Math.sin(f.yaw) + f.ddz * Math.cos(f.yaw), side = f.ddx * Math.cos(f.yaw) - f.ddz * Math.sin(f.yaw);
       bx = fwd * lean; bz = -side * lean;

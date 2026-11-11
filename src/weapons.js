@@ -21,7 +21,7 @@ const SWORD = {
     { name: 'v1', anim: ['Right_Hand_Sword_Slash', 0.1, 0.53, 1.1], windup: 0.3, active: 0.12, recover: 0.28, dmg: 11, stam: 8, range: 2.55, arc: 0.7, lunge: 3.4, stagger: 0.36, knock: 3.5 },
     { name: 'v2', anim: ['Thrust_Slash', 0.3, 0.73, 1.1], windup: 0.3, active: 0.12, recover: 0.4, dmg: 14, stam: 9, range: 2.8, arc: 0.55, lunge: 4.2, stagger: 0.46, knock: 5 },
   ],
-  focusH: { name: 'focusH', focus: true, heavy: true, anim: ['Heavy_Hammer_Swing', 1.05, 1.53, 1.8], hold: 1.05, windup: 0.2, active: 0.14, recover: 0.5, dmg: 24, stam: 16, range: 2.8, arc: 1.3, lunge: 4.5, stagger: 0.75, knock: 7 },
+  focusH: { name: 'focusH', focus: true, heavy: true, anim: ['Charged_Slash', 0.8, 1.17, 2.0], hold: 0.8, windup: 0.2, active: 0.14, recover: 0.5, dmg: 24, stam: 16, range: 2.8, arc: 1.3, lunge: 4.5, stagger: 0.75, knock: 7 },
   focusV: { name: 'focusV', focus: true, heavy: true, anim: ['Charged_Ground_Slam', 1.1, 1.66, 2.7], hold: 1.1, windup: 0.22, active: 0.14, recover: 0.6, dmg: 30, stam: 18, range: 2.65, arc: 0.7, lunge: 5.0, stagger: 0.9, knock: 9 },
 };
 
@@ -48,7 +48,8 @@ const SPEAR = {
 export const WEAPONS = {
   sword: SWORD,
   divine: { ...SWORD, label: 'Divine sword and shield' },
-  mace: tuned(SWORD, 'Mace and shield', 1.15, 1.2),
+  // The mace keeps the big hammer swing for its charged horizontal strike.
+  mace: tuned({ ...SWORD, focusH: { ...SWORD.focusH, anim: ['Heavy_Hammer_Swing', 1.05, 1.53, 1.8], hold: 1.05 } }, 'Mace and shield', 1.15, 1.2),
   spear: SPEAR,
 };
 

@@ -1,6 +1,7 @@
 // Shrinks the rigged Meshy characters from the rts-game `models` branch for phones, and packs
 // the motion clips into one small library.
 //   node build_models.mjs <source dir> <out dir>              all original fighters plus the motion library
+//   node build_models.mjs <source dir> <out dir> --anims        only the motion library
 //   node build_models.mjs <source dir> <out dir> <id> [...]   only the named fighters (<id>_rig.glb), e.g. new Meshy ones
 // Needs: @gltf-transform/core, /extensions, /functions, sharp, meshoptimizer.
 import { NodeIO } from '@gltf-transform/core';
@@ -15,7 +16,7 @@ await MeshoptEncoder.ready; await MeshoptSimplifier.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder });
 
 const CHARACTERS = only.length ? only : ['franks_knight', 'byzantines_knight', 'chinese_knight', 'franks_militia', 'byzantines_spearman', 'franks_king', 'chinese_militia', 'chinese_spearman'];
-for (const name of CHARACTERS) {
+for (const name of only[0] === '--anims' ? [] : CHARACTERS) {
   const doc = await io.read(`${src}/${name}_rig.glb`);
   for (const a of doc.getRoot().listAnimations()) a.dispose();
   await doc.transform(
@@ -28,12 +29,14 @@ for (const name of CHARACTERS) {
   console.log(name, (fs.statSync(`${out}/${name}.glb`).size / 1024 | 0) + ' KB', tris + ' tris');
 }
 
-if (only.length) process.exit(0);
+if (only.length && only[0] !== '--anims') process.exit(0);
 
 // One library of motion clips, skeleton only.
 const KEEP = ['Combat_Stance', 'Idle_02', 'Run_02', 'Casual_Walk', 'ForwardLeft_Run_Fight', 'Spear_Walk', 'Right_Hand_Sword_Slash', 'Double_Combo_Attack',
   'Triple_Combo_Attack', 'Thrust_Slash', 'Charged_Ground_Slam', 'Heavy_Hammer_Swing', 'Block2', 'Sword_Parry', 'Hit_Reaction_1', 'Hit_Reaction',
-  'Dead', 'Shot_and_Fall_Backward', 'Shot_and_Fall_Forward'];
+  'Dead', 'Shot_and_Fall_Backward', 'Shot_and_Fall_Forward',
+  // bought for The Duel (combat3_anim.glb)
+  'Walk_Fight_Forward', 'Charged_Slash', 'Roll_Dodge', 'Hit_Reaction_to_Waist', 'Knock_Down'];
 const lib = await io.read(`${src}/villager_m_anim.glb`);
 const seen = new Set();
 const strip = (doc) => {
@@ -43,7 +46,7 @@ const strip = (doc) => {
   for (const list of [r.listSkins(), r.listMeshes(), r.listMaterials(), r.listTextures()]) for (const x of list) x.dispose();
 };
 strip(lib);
-for (const f of ['villager_m_anim2', 'combat2_anim', 'combat_anim']) {
+for (const f of ['villager_m_anim2', 'combat2_anim', 'combat_anim', 'combat3_anim']) {
   const d = await io.read(`${src}/${f}.glb`); strip(d);
   mergeDocuments(lib, d);
 }
