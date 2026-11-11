@@ -173,6 +173,8 @@ async function shot(size, screen) {
   process.stdout.write(issues.some((i) => !/tiny|small/.test(i.kind)) ? 'x' : '.');
 }
 
+// Fight on the open field: the courtyard is too slow to draw in the test browser.
+await page.addInitScript(() => { try { localStorage.setItem('duel.arena', 'field'); localStorage.setItem('duel.music', 'off'); } catch { /* no storage */ } });
 fs.rmSync(OUT, { recursive: true, force: true });
 await page.goto(`${BASE}/index.html?arena=field`);
 await page.waitForFunction(() => !document.getElementById('studio') && document.getElementById('build').textContent, null, { timeout: 60000 });
@@ -211,7 +213,8 @@ if (FIGHT) {
       for (const [size] of SIZES) { await setSize(size); await shot(size, '05-paused'); }
       await page.evaluate(() => document.getElementById('paused').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
     }
-    // run the clock out with the rival hurt, round after round, until the match ends
+    // run the clock out with the rival hurt until the match ends (one round is enough: the player is given the first)
+    await page.evaluate(() => { window.__duel.world.score[0] = 1; });
     const t0 = Date.now();
     while (Date.now() - t0 < 240000 && await page.evaluate(() => document.getElementById('menu').classList.contains('hidden'))) {
       await page.evaluate(() => { const w = window.__duel.world; if (w.phase === 'fight') { w.fighters[1].hp = 1; w.timeLeft = Math.min(w.timeLeft, 0.2); } });

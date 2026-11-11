@@ -145,6 +145,23 @@ export class FighterView {
     // a sword sits diagonally out of the fist, a spear lies along the palm, and nobody carries a shield: defence is the parry and the dodge.
     attach(bones.RightHand, weapon.g, def.weapon === 'spear' ? [Math.PI / 2, 0, 0] : [Math.PI / 4, 0, 0]);
     this.chest = bones.Spine01 || bones.Spine;
+    this.held = weapon.g; this.hand = bones.RightHand;
+
+    // A second copy of the weapon for when it is knocked out of the hand by a parry: it spins away, lands,
+    // and lies inside a pulsing gold ring until its owner walks over it. Lives in the scene, not on the fighter.
+    const spare = buildWeapon(def.weapon, this.bladeMat);
+    this.dropped = new THREE.Group(); this.dropped.visible = false;
+    this.spare = new THREE.Group(); this.spare.add(spare.g);
+    this.marker = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.8, 32), new THREE.MeshBasicMaterial({ color: 0xffd76a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    this.marker.rotation.x = -Math.PI / 2; this.marker.position.y = 0.06;
+    this.dropped.add(this.spare, this.marker);
+    this.dropT = 0; this.dropFrom = new THREE.Vector3(); this.wasDisarmed = false;
+
+    // A blue glow around a fighter who is charging: the cue to get a parry ready.
+    this.aura = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshBasicMaterial({ color: 0x2f8cff, transparent: true, opacity: 0, depthWrite: false, side: THREE.BackSide }));
+    this.aura.position.y = 1.0; this.aura.scale.set(0.85, 1.25, 0.85); this.aura.visible = false;
+    this.root.add(this.aura);
+    this.clock = 0;
 
     // Coloured ring on the ground so the two sides are never confused, even with the same fighter.
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 28), new THREE.MeshBasicMaterial({ color: TEAM[team], transparent: true, opacity: 0.75, depthWrite: false }));
@@ -224,6 +241,8 @@ export class FighterView {
         break;
       }
       case 'dead': {
+        // Killed while already on the ground, a fighter stays there.
+        if (f.floored) { want.Stand_Up1 = 1; A.Stand_Up1.timeScale = 0; A.Stand_Up1.time = 1.6; fade = 12; break; }
         // Killed by a charged strike, a fighter is flung off their feet; otherwise they fall where they stand.
         if (f.launched) { want.Knock_Down = 1; A.Knock_Down.timeScale = 0; A.Knock_Down.time = Math.min(2.4, 0.15 + f.t * 1.25); fade = 30; break; }
         const clip = 'Shot_and_Fall_Backward';
@@ -275,6 +294,25 @@ export class FighterView {
     const glow = this.baseGlow + this.focusMix * 3.2;
     this.bladeMat.emissiveIntensity += (glow - this.bladeMat.emissiveIntensity) * Math.min(1, 20 * dt);
     this.ring.material.opacity = f.state === 'dead' ? 0.25 : 0.75;
+    this.clock += dt;
+    const aura = this.focusMix * (0.3 + 0.1 * Math.sin(this.clock * 16));
+    this.aura.visible = aura > 0.01; this.aura.material.opacity = aura;
+    const grow = 1 + 0.12 * Math.sin(this.clock * 9);
+    this.aura.scale.set(0.85 * grow, 1.25, 0.85 * grow);
+
+    // Disarmed: the weapon leaves the hand, tumbles through the air and lies where it landed.
+    if (f.disarmed) {
+      if (!this.wasDisarmed) { this.dropT = 0; this.hand.getWorldPosition(this.dropFrom); this.dropped.position.set(f.dropX, 0, f.dropZ); }
+      this.dropT += dt;
+      const k = Math.min(1, this.dropT / 0.55), sp = this.spare;
+      sp.position.set((this.dropFrom.x - f.dropX) * (1 - k), this.dropFrom.y * (1 - k) + Math.sin(k * Math.PI) * 1.8 + 0.07, (this.dropFrom.z - f.dropZ) * (1 - k));
+      if (k < 1) sp.rotation.set(this.dropT * 17, this.dropT * 3, 0); else sp.rotation.set(0, 0.6, Math.PI / 2);
+      this.marker.visible = k >= 1;
+      const pulse = 1 + 0.18 * Math.sin(this.clock * 7);
+      this.marker.scale.setScalar(pulse); this.marker.material.opacity = 0.55 + 0.35 * Math.sin(this.clock * 7);
+    }
+    this.held.visible = !f.disarmed; this.dropped.visible = !!f.disarmed;
+    this.wasDisarmed = !!f.disarmed;
   }
 
   // Jump straight to the fighter's current state with no blending (round start).
@@ -282,11 +320,12 @@ export class FighterView {
     this.started = false;
     for (const n in this.weights) this.weights[n] = 0;
     this.tilt.rotation.set(0, 0, 0);
+    this.wasDisarmed = false; this.focusMix = 0;
     this.update(f, 1);
   }
 
   dispose() {
     this.mixer.stopAllAction();
-    this.root.removeFromParent(); // model geometry is shared between fighters, so it is not disposed here
+    this.root.removeFromParent(); this.dropped.removeFromParent(); // model geometry is shared between fighters, so it is not disposed here
   }
 }

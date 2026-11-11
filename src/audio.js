@@ -113,10 +113,11 @@ export const sfx = {
 // Music sits well under the sound effects and dips further on big moments.
 const MUSIC_URL = new URL('../assets/music/', import.meta.url).href;
 const TRACKS = { menu: ['menu'], battle: ['battle1', 'battle2'], victory: ['victory'], defeat: ['defeat'] };
-const MUSIC_LEVEL = 0.26, FADE = 2.8;
+// Battle music is kept low so every hit, parry and warning sound is clearly heard over it.
+const MUSIC_LEVEL = { menu: 0.15, battle: 0.085, victory: 0.15, defeat: 0.15 }, FADE = 2.8;
 let musicOn = true, musicKind = null, current = null, lastTrack = '', duckMul = 1, duckTimer = 0;
 try { musicOn = localStorage.getItem('duel.music') !== 'off'; } catch { /* storage unavailable */ }
-const musicTarget = () => (musicOn ? MUSIC_LEVEL * duckMul : 0);
+const musicTarget = () => (musicOn ? (MUSIC_LEVEL[musicKind] || 0.1) * duckMul : 0);
 
 function fadeTo(audio, to, secs, then) {
   clearInterval(audio._fade);

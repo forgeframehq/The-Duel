@@ -6,7 +6,7 @@
 //   normal attacks  beat a parry      (a parry does not stop them)
 //   a charged strike beats normal attacks (it cannot be interrupted by them)
 //   a parry          beats a charged strike (and leaves the attacker wide open)
-import { weaponOf } from './weapons.js';
+import { weaponOf, attackFor } from './weapons.js';
 import { skillOf } from './skills.js';
 
 export const TICK = 1 / 60;
@@ -19,12 +19,17 @@ export const MIN_CHARGE = 0.3;    // a charge must be held at least this long be
 export const FULL_CHARGE = 0.9;   // held this long, the strike does its most damage
 export const MAX_CHARGE = 1.5;    // held this long, it goes off by itself
 // A parry: the moment it starts working, the moment it stops, and when the fighter can act again.
-export const PARRY = { start: 0.03, end: 0.5, total: 0.75 };
+export const PARRY = { start: 0.03, end: 0.7, total: 0.95 };
+// A parried fighter's weapon is knocked out of their hand. It comes back when they walk over it, or by itself after this long.
+export const DISARM_TIME = 7, PICKUP_RANGE = 1.0;
+// A press made a moment too early (while reeling, rolling or recovering) is remembered this long,
+// and a string stays open this long after a swing ends. Both are generous on purpose: thumbs on glass are not buttons.
+export const BUFFER_TIME = 0.28, STRING_GAP = 0.75;
 // A launched fighter hangs in the air this long, can be hit this many more times, then lies on the ground and gets up.
 export const AIR_TIME = 1.05, JUGGLE_MAX = 3, DOWN_TIME = 0.7, GETUP_TIME = 0.7, AIR_HEIGHT = 1.5;
 const RADIUS = 0.48;
 
-export const EMPTY_CMD = Object.freeze({ mx: 0, mz: 0, faceYaw: null, atk: false, atkHold: false, up: false, parry: false, dodge: false, skill: false, sprint: false });
+export const EMPTY_CMD = Object.freeze({ mx: 0, mz: 0, faceYaw: null, h: false, v: false, hHold: false, vHold: false, parry: false, dodge: false, skill: false, sprint: false });
 
 // Upgrade hook for the progression phase: everything a character build can change lives here.
 export function defaultStats() {
@@ -43,7 +48,8 @@ function turnToward(cur, target, maxStep) {
 }
 
 const FRESH = () => ({
-  state: 'idle', t: 0, atk: null, btn: null, combo: 0, comboT: 0, hitDone: false, swung: false, queued: null,
+  state: 'idle', t: 0, atk: null, btn: null, seq: '', seqT: 0, bufBtn: null, bufT: 0, hitDone: false, swung: false, queue: '',
+  disarmed: false, disarmT: 0, dropX: 0, dropZ: 0, groundHit: false, floored: false,
   charge: null, chargeMul: 1, juggle: 0, airDur: AIR_TIME, buffT: 0, skillCd: 0, staggerDur: 0, parried: false, bounced: false, connected: false, winded: 0, regenDelay: 0,
 });
 
@@ -132,44 +138,44 @@ function spend(f, amount, delay, w) {
 }
 
 function beginSwing(f, atk, w) {
-  f.state = 'attack'; f.t = 0; f.atk = atk; f.hitDone = false; f.connected = false; f.swung = false; f.queued = null; f.swingId++;
+  f.state = 'attack'; f.t = 0; f.atk = atk; f.hitDone = false; f.connected = false; f.swung = false; f.swingId++;
   w.events.push({ type: 'windup', id: f.id, heavy: !!atk.focus });
 }
 
-// A normal attack. Which one comes out depends on the place in the combo.
-function startAttack(f, w) {
+// A normal attack on the Horizontal ('H') or Vertical ('V') button. Which one comes out depends on
+// the presses before it: the third press of a string is a finisher chosen by the order of the buttons.
+function startAttack(f, btn, w) {
+  if (f.disarmed) { w.events.push({ type: 'unarmed', id: f.id }); return false; }
   if (f.winded > 0 || f.stam <= 0) return false;
-  const list = f.weapon.combo, atk = list[Math.min(f.combo, list.length - 1)];
+  const seq = (f.seq.length >= 3 ? '' : f.seq) + btn, atk = attackFor(f.weapon, seq);
   spend(f, atk.stam, 0.7, w);
-  f.chargeMul = 1;
+  f.chargeMul = 1; f.seq = seq; f.btn = btn;
   beginSwing(f, atk, w);
+  w.events.push({ type: 'string', id: f.id, seq, title: atk.title || '' });
   return true;
 }
 
-// The uppercut. If it lands, the enemy is knocked into the air.
-function startLaunch(f, w) {
-  if (f.winded > 0 || f.stam <= 0) return false;
-  spend(f, f.weapon.launch.stam, 0.7, w);
-  f.chargeMul = 1;
-  beginSwing(f, f.weapon.launch, w);
-  return true;
+function endString(f, w) {
+  if (f.seq) { f.seq = ''; w.events.push({ type: 'string', id: f.id, seq: '', title: '' }); }
+  f.seqT = 0;
 }
 
 // The fighter's special. Ready again after its cooldown.
 function startSkill(f, w) {
   if (f.skillCd > 0) return false;
   const sk = f.skill;
+  if (sk.atk && sk.atk.armed && f.disarmed) { w.events.push({ type: 'unarmed', id: f.id }); return false; }
   f.skillCd = sk.cooldown;
   w.events.push({ type: 'skill', id: f.id, name: sk.name, kind: sk.atk ? sk.atk.name : 'wind' });
-  if (sk.atk) { f.chargeMul = 1; f.combo = 0; beginSwing(f, sk.atk, w); }
+  if (sk.atk) { f.chargeMul = 1; endString(f, w); f.parried = false; f.bounced = false; beginSwing(f, sk.atk, w); }
   else { f.stam = f.stats.maxStam; f.winded = 0; f.regenDelay = 0; f.buffT = sk.buff; }
   return true;
 }
 
 function startParry(f, w) {
-  if (f.winded > 0 || f.stam <= 0) return false;
+  if (f.disarmed || f.winded > 0 || f.stam <= 0) return false;
   spend(f, 12, 0.6, w);
-  f.state = 'parry'; f.t = 0; f.combo = 0;
+  f.state = 'parry'; f.t = 0; endString(f, w);
   w.events.push({ type: 'parrystance', id: f.id });
   return true;
 }
@@ -181,7 +187,7 @@ function startDodge(f, cmd, w) {
   if (m > 0.2) { dx /= m; dz /= m; } else { dx = -Math.sin(f.yaw); dz = -Math.cos(f.yaw); }
   f.ddx = dx; f.ddz = dz;
   spend(f, 20, 0.6, w);
-  f.state = 'dodge'; f.t = 0; f.charge = null;
+  f.state = 'dodge'; f.t = 0; f.charge = null; f.queue = '';
   w.events.push({ type: 'dodge', id: f.id });
   return true;
 }
@@ -207,18 +213,27 @@ function updateFighter(f, cmd, other, w) {
     if (f.skillCd > 0) f.skillCd -= dt;
     if (f.regenDelay > 0) f.regenDelay -= dt;
     else if (f.state === 'idle' || f.state === 'stagger') f.stam = Math.min(f.stats.maxStam, f.stam + 26 * dt);
+    // Remember an attack pressed a moment too early, so it comes out as soon as the fighter is free.
+    if (f.bufT > 0) f.bufT -= dt;
+    if ((cmd.h || cmd.v) && f.state !== 'idle' && f.state !== 'attack' && f.state !== 'charge') { f.bufBtn = cmd.h ? 'H' : 'V'; f.bufT = BUFFER_TIME; }
+    // Disarmed: the weapon lies where it fell until its owner reaches it.
+    if (f.disarmed) {
+      f.disarmT -= dt;
+      const near = Math.hypot(f.x - f.dropX, f.z - f.dropZ) < PICKUP_RANGE;
+      if ((near && (f.state === 'idle' || f.state === 'dodge')) || f.disarmT <= 0) { f.disarmed = false; w.events.push({ type: 'pickup', id: f.id, x: f.x, z: f.z }); }
+    }
   }
 
   let tvx = 0, tvz = 0, accel = 14;
 
   switch (f.state) {
     case 'idle': {
-      if (f.comboT > 0) { f.comboT -= dt; if (f.comboT <= 0) f.combo = 0; }
+      if (f.seqT > 0) { f.seqT -= dt; if (f.seqT <= 0) endString(f, w); }
       if (cmd.dodge && startDodge(f, cmd, w)) break;
       if (cmd.parry && startParry(f, w)) break;
       if (cmd.skill && startSkill(f, w)) break;
-      if (cmd.up && startLaunch(f, w)) break;
-      if (cmd.atk && startAttack(f, w)) break;
+      const press = cmd.h ? 'H' : cmd.v ? 'V' : f.bufT > 0 ? f.bufBtn : null;
+      if (press) { f.bufT = 0; if (startAttack(f, press, w)) break; }
       let sp = f.stats.speed;
       const mag = Math.min(1, Math.hypot(cmd.mx, cmd.mz));
       if (cmd.sprint && mag > 0.5 && f.winded <= 0 && f.stam > 0) { sp *= 1.5; spend(f, 13 * dt, 0.35, w); }
@@ -235,12 +250,14 @@ function updateFighter(f, cmd, other, w) {
     case 'attack': {
       // A swing that touches nothing (missed or dodged) takes longer to recover from: an opening for the other side.
       const a = f.atk, recover = a.recover * (f.connected || f.t < a.windup + a.active ? 1 : 1.4), total = a.windup + a.active + recover;
-      if (cmd.atk) f.queued = 'atk';
-      if (cmd.up) f.queued = 'up';
+      // Presses made during a swing wait their turn (two at most), so a string can be tapped out quickly.
+      if (cmd.h) f.queue = (f.queue + 'H').slice(0, 2);
+      if (cmd.v) f.queue = (f.queue + 'V').slice(0, 2);
       // Still holding the button early in a normal swing: wind it back into a charge.
-      // From a standstill it becomes the charged strike; in the middle of a combo, the slamming finisher.
-      if (!a.focus && !a.launch && a !== f.weapon.riposte && f.t >= CHARGE_AFTER && f.t < a.windup && cmd.atkHold) {
-        f.state = 'charge'; f.t = 0; f.charge = f.combo >= 1 ? 'v' : 'h'; f.queued = null;
+      // Horizontal becomes the wide charged strike, Vertical the charged slam.
+      if (!a.focus && !a.launch && !a.ender && a !== f.weapon.riposte && f.t >= CHARGE_AFTER && f.t < a.windup && (f.btn === 'H' ? cmd.hHold : cmd.vHold)) {
+        f.state = 'charge'; f.t = 0; f.charge = f.btn === 'H' ? 'h' : 'v'; f.queue = '';
+        endString(f, w);
         w.events.push({ type: 'charge', id: f.id });
         break;
       }
@@ -251,14 +268,15 @@ function updateFighter(f, cmd, other, w) {
       if (!f.swung && f.t >= a.windup) { f.swung = true; w.events.push({ type: 'swing', id: f.id, heavy: !!a.focus }); }
       if (cmd.dodge && f.t >= a.windup + a.active + recover * 0.45 && startDodge(f, cmd, w)) break;
       if (f.t >= total) {
-        const q = f.queued;
-        f.state = 'idle'; f.t = 0; f.queued = null; f.comboT = 0.5;
-        // A combo is three normal attacks at most; a charged strike always ends one.
-        f.combo = a.focus || a.launch || a === f.weapon.riposte ? 0 : f.combo + 1;
-        if (a.focus) break;
-        if (q === 'up') { f.combo = 0; startLaunch(f, w); } // the uppercut can follow any normal hit
-        else if (f.combo >= 3) f.combo = 0;
-        else if (q) startAttack(f, w);
+        const q = f.queue[0], free = a.launch || a === f.weapon.riposte;
+        f.state = 'idle'; f.t = 0; f.queue = f.queue.slice(1); f.seqT = STRING_GAP;
+        // A string is three presses at most; a finisher, a charged strike or a special always ends one.
+        const ended = a.focus || a.ender || free || f.seq.length >= 3;
+        if (ended) endString(f, w);
+        if (a.focus) { f.queue = ''; break; }
+        // After a finisher there is a breath before the next string (an opening for the other side),
+        // except after the uppercut or a counter, where the follow-up hits come straight away.
+        if (q && (!ended || free)) startAttack(f, q, w); else f.queue = '';
       }
       break;
     }
@@ -269,7 +287,7 @@ function updateFighter(f, cmd, other, w) {
       const sp = f.stats.speed * 0.3;
       tvx = cmd.mx * sp; tvz = cmd.mz * sp;
       face(f, cmd, 6, dt);
-      const held = cmd.atkHold;
+      const held = f.charge === 'h' ? cmd.hHold : cmd.vHold;
       if ((!held && f.t >= MIN_CHARGE) || f.t >= MAX_CHARGE) {
         const atk = f.charge === 'h' ? f.weapon.focusH : f.weapon.focusV;
         f.chargeMul = 1 + 0.3 * Math.max(0, Math.min(1, (f.t - MIN_CHARGE) / (FULL_CHARGE - MIN_CHARGE)));
@@ -295,14 +313,16 @@ function updateFighter(f, cmd, other, w) {
     case 'air': {
       // Knocked off the ground and helpless until landing.
       accel = 3;
-      if (f.t >= f.airDur) { f.state = 'down'; f.t = 0; f.vx = f.vz = 0; w.events.push({ type: 'land', id: f.id, x: f.x, z: f.z }); }
+      if (f.t >= f.airDur) { f.state = 'down'; f.t = 0; f.groundHit = false; f.vx = f.vz = 0; w.events.push({ type: 'land', id: f.id, x: f.x, z: f.z }); }
       break;
     }
     case 'down': accel = 12; if (f.t >= DOWN_TIME) { f.state = 'getup'; f.t = 0; } break;
-    case 'getup': accel = 12; if (f.t >= GETUP_TIME) { f.state = 'idle'; f.t = 0; f.combo = 0; } break;
+    case 'getup': accel = 12; if (f.t >= GETUP_TIME) { f.state = 'idle'; f.t = 0; } break;
     case 'stagger': {
       accel = 6;
-      if (f.t >= f.staggerDur) { f.state = 'idle'; f.t = 0; f.parried = false; f.bounced = false; f.combo = 0; }
+      // A special can be fired while reeling from a hit (though not while thrown open by a parry).
+      if (cmd.skill && !f.parried && startSkill(f, w)) break;
+      if (f.t >= f.staggerDur) { f.state = 'idle'; f.t = 0; f.parried = false; f.bounced = false; }
       break;
     }
     case 'dead': accel = 5; break;
@@ -316,13 +336,34 @@ function updateFighter(f, cmd, other, w) {
 }
 
 function stagger(f, dur, kx, kz, parried = false, bounced = false) {
-  f.state = 'stagger'; f.t = 0; f.staggerDur = dur; f.parried = parried; f.bounced = bounced; f.vx = kx; f.vz = kz; f.queued = null; f.charge = null;
+  f.state = 'stagger'; f.t = 0; f.staggerDur = dur; f.parried = parried; f.bounced = bounced; f.vx = kx; f.vz = kz; f.queue = ''; f.charge = null; f.seq = ''; f.seqT = 0;
+}
+
+// Knocked flat on the ground. One vertical attack can reach a fighter there before they get up.
+function floor(f, kx, kz) {
+  f.state = 'down'; f.t = 0; f.groundHit = false; f.vx = kx; f.vz = kz; f.queue = ''; f.charge = null; f.seq = ''; f.seqT = 0;
+}
+
+// The weapon flies out of a parried fighter's hand and lands a few steps away, off to one side.
+function disarm(a, b, w) {
+  const away = Math.atan2(a.x - b.x, a.z - b.z);
+  let x = a.x, z = a.z;
+  search: for (const d of [4.2, 3, 2]) for (const turn of [0.95, -0.95, 2.0, -2.0, 0]) {
+    const cx = a.x + Math.sin(away + turn) * d, cz = a.z + Math.cos(away + turn) * d;
+    if (Math.hypot(cx, cz) > w.R - 1.6 || !hasLOS(w, a.x, a.z, cx, cz)) continue;
+    if (w.obstacles.some((o) => (o.kind === 'circle' ? Math.hypot(cx - o.x, cz - o.z) < o.r + 0.9 : Math.abs(cx - o.x) < o.hw + 0.9 && Math.abs(cz - o.z) < o.hd + 0.9))) continue;
+    x = cx; z = cz; break search;
+  }
+  a.disarmed = true; a.disarmT = DISARM_TIME; a.dropX = x; a.dropZ = z;
+  w.events.push({ type: 'disarm', id: a.id, x, z });
 }
 
 function findHit(a, b, w) {
-  // A fighter lying on the ground or getting up cannot be hit, which stops a combo going on for ever.
-  if (a.state !== 'attack' || a.hitDone || b.state === 'dead' || b.state === 'down' || b.state === 'getup') return null;
+  // A fighter getting up cannot be hit, and one lying on the ground only once and only by a vertical
+  // attack, which stops a combo going on for ever.
+  if (a.state !== 'attack' || a.hitDone || b.state === 'dead' || b.state === 'getup') return null;
   const atk = a.atk;
+  if (b.state === 'down' && (!atk.ground || b.groundHit)) return null;
   if (a.t < atk.windup || a.t > atk.windup + atk.active) return null;
   const dx = b.x - a.x, dz = b.z - a.z;
   if (Math.hypot(dx, dz) > atk.range + (a.stats.reach || 0)) return null;
@@ -354,10 +395,22 @@ function applyHit(a, b, atk, w) {
   const backstab = off > 2.2;
   const raw = atk.dmg * a.stats.power * (atk.focus ? a.chargeMul : 1) * (a.buffT > 0 ? 1.2 : 1);
 
+  if (b.state === 'down') {
+    // A vertical attack on a fighter lying on the ground: reduced damage, and it keeps them there a little longer.
+    const dmg = raw * 0.7 * (1 - b.stats.armor);
+    b.groundHit = true; b.hp -= dmg;
+    const info = { type: 'hit', id: a.id, target: b.id, dmg, heavy: !!atk.focus, ground: true, title: atk.title || '', x: px, z: pz };
+    if (b.hp <= 0) { b.hp = 0; b.state = 'dead'; b.t = 0; b.floored = true; b.vx = b.vz = 0; w.events.push({ ...info, kill: true }); }
+    else { b.t = Math.max(0, b.t - 0.2); w.events.push({ ...info, kill: false }); }
+    return;
+  }
+
   if (atk.focus && !atk.skill && parrying(b) && off <= 1.6) {
-    // A parry beats a charged strike (not a special): the attacker is thrown wide open and the defender counters at once.
-    stagger(a, 1.4, -nx * 2, -nz * 2, true);
-    b.stam = Math.min(b.stats.maxStam, b.stam + 25); b.regenDelay = 0; b.combo = 0; b.chargeMul = 1;
+    // A parry beats a charged strike (not a special): the attacker's weapon is knocked out of their hand,
+    // they are thrown wide open, and the defender counters at once.
+    stagger(a, 1.2, -nx * 2, -nz * 2, true);
+    disarm(a, b, w);
+    b.stam = Math.min(b.stats.maxStam, b.stam + 25); b.regenDelay = 0; b.seq = ''; b.chargeMul = 1;
     b.yaw = Math.atan2(-dx, -dz);
     beginSwing(b, b.weapon.riposte, w);
     w.events.push({ type: 'parry', id: b.id, target: a.id, x: px, z: pz });
@@ -378,7 +431,7 @@ function applyHit(a, b, atk, w) {
   const punish = !atk.focus && b.state === 'parry';
   const bonus = backstab || riposte ? 1.5 : punish ? 1.25 : 1;
   const dmg = raw * bonus * (1 - b.stats.armor);
-  const info = { type: 'hit', id: a.id, target: b.id, dmg, heavy: !!atk.focus, backstab, riposte, punish, x: px, z: pz };
+  const info = { type: 'hit', id: a.id, target: b.id, dmg, heavy: !!atk.focus || !!atk.heavy, backstab, riposte, punish, title: atk.title || '', x: px, z: pz };
   b.hp -= dmg;
   if (b.hp <= 0) {
     b.launched = !!atk.focus || b.state === 'air';
@@ -387,12 +440,15 @@ function applyHit(a, b, atk, w) {
   } else if (b.state === 'air') {
     // Juggling: each hit keeps them up a little longer; a charged strike or the last allowed hit slams them down.
     b.juggle++;
-    if (atk.focus || b.juggle >= JUGGLE_MAX) { b.state = 'down'; b.t = 0; b.vx = nx * 2; b.vz = nz * 2; w.events.push({ ...info, kill: false, slam: true }); }
+    if (atk.focus || atk.slam || b.juggle >= JUGGLE_MAX) { floor(b, nx * 2, nz * 2); w.events.push({ ...info, kill: false, slam: true }); }
     else { b.t = Math.min(b.t, 0.3); b.vx = nx * 0.4; b.vz = nz * 0.4; w.events.push({ ...info, kill: false, air: true }); }
   } else if (atk.launch) {
-    b.state = 'air'; b.t = 0; b.juggle = 0; b.airDur = AIR_TIME; b.charge = null; b.queued = null; b.vx = nx * 0.5; b.vz = nz * 0.5;
-    a.combo = 0;   // a fresh combo for the hits that follow in the air
+    b.state = 'air'; b.t = 0; b.juggle = 0; b.airDur = AIR_TIME; b.charge = null; b.queue = ''; b.vx = nx * 0.5; b.vz = nz * 0.5;
     w.events.push({ ...info, kill: false, launch: true });
+  } else if (atk.slam) {
+    // Earthsplitter drives a standing fighter into the ground.
+    floor(b, nx * atk.knock, nz * atk.knock);
+    w.events.push({ ...info, kill: false, slam: true });
   } else {
     stagger(b, atk.stagger, nx * atk.knock, nz * atk.knock);
     w.events.push({ ...info, kill: false });

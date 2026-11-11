@@ -1,5 +1,5 @@
 // skills.js — each fighter's special. One button, on a cooldown. Specials cannot be parried;
-// they can be dodged. `atk` uses the same shape as a weapon attack (see weapons.js).
+// they can be dodged, and they can be fired while reeling from a hit. `armed` ones need the weapon in hand. `atk` uses the same shape as a weapon attack (see weapons.js).
 export const SKILLS = {
   // Aurelian: a burst of light all around him that throws the enemy back.
   sunburst: {
@@ -10,7 +10,7 @@ export const SKILLS = {
   // Varek: a long armoured rush that carries him across the yard and through the enemy's guard.
   rush: {
     name: "Oathbreaker's Rush", cooldown: 12,
-    atk: { name: 'rush', focus: true, heavy: true, skill: true, dash: true, anim: ['Thrust_Slash', 0.3, 0.73, 1.1], windup: 0.32, active: 0.22, recover: 0.45,
+    atk: { name: 'rush', focus: true, heavy: true, skill: true, dash: true, armed: true, anim: ['Thrust_Slash', 0.3, 0.73, 1.1], windup: 0.32, active: 0.22, recover: 0.45,
       dmg: 22, stam: 0, range: 2.7, arc: 0.9, lunge: 21, stagger: 0.8, knock: 8 },
   },
   // Everyone else: catch your breath and hit harder for a few seconds.

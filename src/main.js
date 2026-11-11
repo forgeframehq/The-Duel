@@ -2,6 +2,7 @@
 // (hit-stop, slow motion, shake) that sits on top of the rules in sim.js.
 import * as THREE from 'three';
 import { TICK, ROUNDS_TO_WIN, createWorld, stepWorld, hasLOS, wrapAngle } from './sim.js';
+import { STRINGS, attackFor } from './weapons.js';
 import { createAI, thinkAI } from './ai.js';
 import { buildCourtyard } from './courtyard.js';
 import { buildArena } from './arena.js';
@@ -14,7 +15,7 @@ import { sfx, music, unlockAudio, buzz } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
 // Shown on the title screen, so it is easy to tell which version is on a phone. Raise it with every update.
-const BUILD = 17;
+const BUILD = 18;
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
@@ -41,10 +42,22 @@ Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, n
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03;
 scene.add(sun);
 
-// The castle courtyard is the arena; the open field is kept as a second map (add ?arena=field to the address).
+// Two arenas, chosen on the fighter select screen: the castle courtyard and the open field.
+// Each is built the first time it is picked and kept after that. (?arena=field in the address starts on the field.)
 const query = new URLSearchParams(location.search);
-const arena = query.get('arena') === 'field' ? buildArena() : buildCourtyard();
-scene.add(arena.group);
+const arenas = {};
+let arena = null, arenaId = '';
+function setArena(id) {
+  id = id === 'field' ? 'field' : 'courtyard';
+  if (id === arenaId) return;
+  if (arena) scene.remove(arena.group);
+  arena = arenas[id] || (arenas[id] = id === 'field' ? buildArena() : buildCourtyard());
+  arenaId = id;
+  scene.add(arena.group);
+}
+let savedArena = null;
+try { savedArena = localStorage.getItem('duel.arena'); } catch { /* storage unavailable */ }
+setArena(query.get('arena') || savedArena || 'courtyard');
 
 // The two fighters on screen. Filled in once their models have loaded.
 let views = [];
@@ -56,7 +69,7 @@ async function setFighters(youId, rivalId) {
   if (request !== fighterRequest) { next.forEach((v) => v.dispose()); return; } // a newer choice has been made since
   views.forEach((v) => v.dispose());
   views = next; fighters = [byId(youId), byId(rivalId)];
-  views.forEach((v) => scene.add(v.root));
+  views.forEach((v) => scene.add(v.root, v.dropped));
 }
 const trails = [new Trail(scene), new Trail(scene)];
 const particles = new Particles(scene);
@@ -72,7 +85,7 @@ let acc = 0, hitStop = 0, slowT = 0, slowScale = 1, lastTime = performance.now()
 let lockWanted = true, locked = false, lostT = 0, lastSecond = -1;
 // Camera views the player can switch between with the camera button (or the C key). The choice is remembered.
 const CAMERAS = [
-  { id: 'classic', name: 'Classic', dist: 5.2, side: 0.55, sideLocked: 1.2, height: 1.55, pitch: 0.36, fov: 58 },
+  { id: 'classic', name: 'Classic', dist: 4.3, side: 0.55, sideLocked: 1.1, height: 1.55, pitch: 0.34, fov: 58 },
   { id: 'shoulder', name: 'Shoulder', dist: 3.3, side: 0.85, sideLocked: 1.05, height: 1.5, pitch: 0.2, fov: 54 },
   { id: 'wide', name: 'Wide', dist: 8.5, side: 0, sideLocked: 0.5, height: 1.6, pitch: 0.55, fov: 58 },
   { id: 'side', name: 'Side-on', dist: 6, side: 0.55, sideLocked: 1.2, height: 1.55, pitch: 0.36, fov: 50 }, // both fighters in profile, like a fighting game
@@ -89,7 +102,18 @@ const hud = {
 };
 hud.pips.forEach((p) => { p.innerHTML = '<span></span>'.repeat(ROUNDS_TO_WIN); });
 
-const atkBtn = $('btn-atk'), skillBtn = $('btn-skill'), skillCd = $('skill-cd');
+const hBtn = $('btn-h'), vBtn = $('btn-v'), parryBtn = $('btn-parry'), skillBtn = $('btn-skill');
+const marks = [...$('string-marks').children], nextEl = $('string-next');
+let shownSeq = null;
+// The presses so far light up beside the buttons; after two, it names what each button would finish with.
+function showString(f) {
+  if (f.seq === shownSeq) return;
+  shownSeq = f.seq;
+  marks.forEach((el, i) => { el.className = f.seq[i] === 'H' ? 'h' : f.seq[i] === 'V' ? 'v' : ''; });
+  $('string').classList.toggle('live', f.seq.length > 0);
+  const next = f.seq.length === 2 ? [['H', 'h'], ['V', 'v']].map(([b, c]) => [c, attackFor(f.weapon, f.seq + b).title]).filter((x) => x[1]) : [];
+  nextEl.innerHTML = next.map(([c, title]) => `<span><b class="${c}"></b>${title}</span>`).join('');
+}
 function updateHud() {
   world.fighters.forEach((f, i) => {
     const hp = Math.max(0, f.hp / f.stats.maxHp) * 100, st = Math.max(0, f.stam / f.stats.maxStam) * 100;
@@ -98,10 +122,17 @@ function updateHud() {
     hud.st[i].classList.toggle('low', st < 22);
     hud.st[i].parentElement.classList.toggle('winded', f.winded > 0);
     if (i === 0) {
-      atkBtn.classList.toggle('charging', f.state === 'charge');
-      // The special button fills back up as its cooldown runs down.
+      hBtn.classList.toggle('charging', f.state === 'charge' && f.charge === 'h');
+      vBtn.classList.toggle('charging', f.state === 'charge' && f.charge === 'v');
+      for (const b of [hBtn, vBtn, parryBtn]) b.classList.toggle('off', f.disarmed);
+      // The ring round the special button fills back up as its cooldown runs down.
       const left = Math.max(0, f.skillCd) / f.skill.cooldown;
-      skillCd.style.height = left * 100 + '%'; skillBtn.classList.toggle('ready', left <= 0);
+      skillBtn.style.setProperty('--cd', Math.round((1 - left) * 100)); skillBtn.classList.toggle('ready', left <= 0);
+      showString(f);
+    } else {
+      // The Parry button lights up blue while the rival is charging or letting a charged strike go: that is the moment to press it.
+      const threat = f.state === 'charge' || (f.state === 'attack' && f.atk.focus && !f.atk.skill && f.t < f.atk.windup + f.atk.active);
+      parryBtn.classList.toggle('cue', threat && !world.fighters[0].disarmed && world.phase === 'fight');
     }
     [...hud.pips[i].children].forEach((el, k) => {
       // The rival's pips fill from the outside in, mirroring the player's.
@@ -139,8 +170,9 @@ function label(text, x, y, z, cls = '') {
 function pulse(id, ms) { const el = $(id); el.classList.add('on'); setTimeout(() => el.classList.remove('on'), ms); }
 
 // One of these shows under the round banner, so the rules of the exchange sink in over a few rounds.
-const TIPS = ['Tap Attack to combo, up to three hits', 'Hold Attack to charge a blue strike', 'A blue strike cannot be stopped by normal hits', 'Parry stops a blue strike and counters for you',
-  'Parry does nothing against normal hits: dodge those', 'Launch them, then keep hitting in the air', 'Hold Attack mid-combo for a slamming finisher', 'Your Special cannot be parried, only dodged'];
+const TIPS = ['Three presses make a string: the order picks the finisher', 'Sideways, sideways, downward: Rising Fang launches them', 'Hold either attack to charge a blue strike',
+  'When your rival glows blue, press Parry to knock the weapon from their hand', 'Parry does nothing against normal hits: dodge those', 'Only a downward slash reaches a rival on the ground',
+  'Dodge out of a charge to fake one', 'Disarmed? Walk over your weapon to pick it up', 'Your Special works even while you are being hit'];
 let tipIndex = 0;
 
 // Expanding rings on the ground, for specials, slams and the parry flash.
@@ -158,7 +190,7 @@ function updateRings(dt) {
     if (k >= 1) { scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); rings.splice(i, 1); }
   }
 }
-let parryHints = 3;
+let parryHints = 3, cueHints = 3, unarmedAt = 0;
 
 // ---------- Turning rule events into things you see, hear and feel ----------
 function handleEvents() {
@@ -217,7 +249,25 @@ function handleEvents() {
       case 'charge':
         sfx.charge();
         // A warning over a charging rival: this is the moment to get ready to parry.
-        if (e.id === 1) { const f = world.fighters[1]; label('!', f.x, 2.7, f.z, 'big'); }
+        if (e.id === 1) { const f = world.fighters[1]; label('!', f.x, 2.7, f.z, 'big'); ring(f.x, f.z, 0x58b4ff, 2.2, 0.45); if (cueHints-- > 0) toast('Blue glow: press Parry'); }
+        break;
+      case 'disarm': {
+        // The weapon is knocked out of a parried fighter's hand.
+        const f = world.fighters[e.id];
+        label('DISARMED', f.x, 2.7, f.z, e.id === 0 ? 'call hurt' : 'big');
+        particles.emit(f.x, 1.3, f.z, 26, 0xfff0b0, 8, 0.5);
+        setTimeout(() => { ring(e.x, e.z, 0xffd76a, 1.8, 0.4); sfx.block(); }, 520);
+        if (e.id === 0) { toast('Your weapon! Walk over it'); buzz(120); }
+        break;
+      }
+      case 'pickup': {
+        const f = world.fighters[e.id];
+        ring(f.x, f.z, 0xffe9a8, 1.6, 0.3); sfx.ui('select');
+        if (e.id === 0) label('ARMED', f.x, 2.3, f.z, 'call');
+        break;
+      }
+      case 'unarmed':
+        if (e.id === 0 && performance.now() - unarmedAt > 1500) { unarmedAt = performance.now(); toast('Pick up your weapon first'); }
         break;
       case 'winded': {
         const f = world.fighters[e.id];
@@ -234,10 +284,13 @@ function handleEvents() {
         particles.emit(e.x, 1.25, e.z, e.heavy ? 16 : 8, 0xd02818, 3.5, 0.6);
         sfx.hit(e.heavy);
         label(String(Math.round(e.dmg)), e.x, 2.0, e.z, mine ? (e.heavy || e.backstab ? 'big' : '') : 'hurt');
-        if (e.launch) { label('LAUNCH', e.x, 2.6, e.z, 'call'); particles.emit(e.x, 0.3, e.z, 16, 0xcdb48a, 4, 0.5, 3, 1.4); }
-        else if (e.slam) { label('SLAM', e.x, 2.2, e.z, 'call'); shake.add(0.6); ring(e.x, e.z, 0xffd9a0, 3, 0.35); }
+        // A finisher shows its name where it lands.
+        if (e.launch) { label((e.title || 'Launch').toUpperCase(), e.x, 2.6, e.z, 'call'); particles.emit(e.x, 0.3, e.z, 16, 0xcdb48a, 4, 0.5, 3, 1.4); }
+        else if (e.slam) { label((e.title || 'Slam').toUpperCase(), e.x, 2.2, e.z, 'call'); shake.add(0.6); ring(e.x, e.z, 0xffd9a0, 3, 0.35); }
         else if (e.air) label('AIR ' + world.fighters[e.target].juggle, e.x, 2.9, e.z, 'call');
-        if (e.punish && e.target === 0 && parryHints-- > 0) toast('Parry only stops a blue charged strike');
+        else if (e.ground) { label('GROUND HIT', e.x, 1.6, e.z, 'call'); ring(e.x, e.z, 0xffd9a0, 1.8, 0.3); }
+        else if (e.title) label(e.title.toUpperCase(), e.x, 2.6, e.z, 'call');
+        if (e.punish && e.target === 0 && parryHints-- > 0) toast('Parry only stops a blue strike');
         if (e.backstab) label('BACKSTAB', e.x, 2.5, e.z, 'call');
         else if (e.riposte) label('RIPOSTE', e.x, 2.5, e.z, 'call');
         else if (e.punish) label('PUNISH', e.x, 2.5, e.z, 'call');
@@ -346,9 +399,11 @@ function updateCamera(dt) {
   const sideWant = locked ? C.sideLocked : C.side;
   cam.side = (cam.side ?? sideWant) + (sideWant - (cam.side ?? sideWant)) * Math.min(1, 4 * dt);
   const side = cam.side;
-  camera.position.set(pv.x - sy * flat * cam.cur - cy * side, C.height + Math.sin(cam.pitch) * cam.cur, pv.z - cy * flat * cam.cur + sy * side);
-  if (locked) look.set(pv.x * 0.55 + ev.x * 0.45, 1.25, pv.z * 0.55 + ev.z * 0.45);
-  else look.set(pv.x + sy * 3, 1.3, pv.z + cy * 3);
+  // Squeezed against a wall, the camera rises and tips down so the player's own fighter stays whole on screen.
+  const squeeze = Math.max(0, C.dist - cam.cur);
+  camera.position.set(pv.x - sy * flat * cam.cur - cy * side, C.height + Math.sin(cam.pitch) * cam.cur + squeeze * 0.45, pv.z - cy * flat * cam.cur + sy * side);
+  if (locked) look.set(pv.x * 0.55 + ev.x * 0.45, 1.2 - squeeze * 0.1, pv.z * 0.55 + ev.z * 0.45);
+  else look.set(pv.x + sy * 3, 1.25 - squeeze * 0.1, pv.z + cy * 3);
   camera.position.add(shake.offset);
   camera.lookAt(look);
 }
@@ -379,7 +434,7 @@ function showMenu(title, result = '') {
   // The title screen shows the painted artwork and logo; result screens show the arena behind.
   $('menu').classList.toggle('title', !result);
   $('menu-result').textContent = result;
-  $('menu-kicker').textContent = result ? `${fighters[0].name} against ${fighters[1].name}` : 'A one-on-one fight to the last blow';
+  $('menu-kicker').textContent = result ? `${fighters[0].short || fighters[0].name} against ${fighters[1].short || fighters[1].name}` : 'A one-on-one fight to the last blow';
   $('start').textContent = result ? 'REMATCH' : 'FIGHT';
   $('change').classList.toggle('hidden', !result);
   $('hint').classList.toggle('hidden', !!result);
@@ -403,7 +458,7 @@ function startMatch() {
   app = 'playing'; input.enabled = true; input.reset();
   music.play('battle');
   $('menu').classList.add('hidden'); $('hud').classList.remove('hidden'); $('controls').classList.remove('hidden');
-  $('skill-name').textContent = world.fighters[0].skill.name.toUpperCase();
+  shownSeq = null; cueHints = Math.max(cueHints, 1);
   $('you-name').textContent = fighters[0].name.toUpperCase();
   $('foe-name').textContent = fighters[1].name.toUpperCase();
   handleEvents(); updateHud();
@@ -415,6 +470,7 @@ const select = initSelect({
     goFullscreen();
     select.busy('LOADING…');
     level = picks.level;
+    setArena(picks.arena);
     try {
       await setFighters(picks.you, resolveRival(picks));
     } catch (err) {
@@ -461,9 +517,26 @@ function resize() {
 addEventListener('resize', resize);
 resize();
 
+// The move list on the pause screen.
+$('moves').innerHTML = STRINGS.map((m) => `<li><span class="seq">${[...m.seq].map((c) => `<i class="${c === 'H' ? 'h' : 'v'}"></i>`).join('')}</span><b>${m.name}</b><em>${m.note}</em></li>`).join('')
+  + '<li class="rule"><span class="seq"><i class="h"></i><i class="v"></i></span><b>Hold either</b><em>Blue charged strike. Dodge cancels it</em></li>'
+  + '<li class="rule"><span class="seq"><i class="p"></i></span><b>Parry</b><em>Stops a blue strike and disarms them</em></li>'
+  + '<li class="rule"><span class="seq"><i class="v"></i></span><b>Downward slash</b><em>The only attack that hits a rival on the ground</em></li>';
+
 // ---------- Main loop ----------
+// Frame cap, as in Dawn of Dynasties: 60 frames a second, falling to 30 if the phone struggles.
+// Without it a 120 Hz screen draws twice as often as needed, which only makes heat.
+let capGap = 1000 / 60, slowAvg = 0, lastFrame = 0;
 function frame(now) {
   requestAnimationFrame(frame);
+  if (now - lastFrame < capGap * 0.9) return;
+  lastFrame = now;
+  const work0 = performance.now();
+  step(now);
+  slowAvg = slowAvg * 0.95 + (performance.now() - work0 > 13 ? 1 : 0) * 0.05;
+  capGap = slowAvg > 0.5 ? 1000 / 30 : slowAvg < 0.2 ? 1000 / 60 : capGap;
+}
+function step(now) {
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
   if (paused) { renderer.render(scene, camera); return; }
@@ -518,4 +591,4 @@ setFighters(fighters[0].id, fighters[1].id).then(() => views.forEach((v, i) => v
 requestAnimationFrame(frame);
 
 // Handy for testing from the browser console.
-window.__duel = { renderInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }), get world() { return world; }, get ai() { return ai; }, input, cam, get views() { return views; }, startMatch, setFighters, setLevel: (l) => { level = l; } };
+window.__duel = { renderInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }), get world() { return world; }, get ai() { return ai; }, input, cam, get views() { return views; }, startMatch, setFighters, setArena, get fps() { return Math.round(1000 / capGap); }, setLevel: (l) => { level = l; } };
