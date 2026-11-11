@@ -10,13 +10,17 @@ A one-on-one, third-person sword duel for phones. Landscape only. Runs in the br
 | --- | --- | --- |
 | Left thumb | W A S D | Move |
 | Drag right side | Mouse drag | Look |
-| ATTACK | J | Light attack, tap again to chain a three-hit combo |
-| HEAVY | K | Slow, glowing heavy attack that crushes a guard |
-| BLOCK (hold) | L or Shift | Raise shield. Block just before a hit lands to parry |
+| SLASH (tap) | J | Horizontal attack; tap again to chain, three hits at most |
+| CHOP (tap) | K | Vertical attack: narrower, longer, hits harder |
+| SLASH or CHOP (hold) | hold J or K | Charge, then release a glowing strike that normal hits cannot stop |
+| PARRY | L | A short stance that turns a charged strike back on the attacker |
 | DODGE (tap / hold) | Space | Dodge with a moment of invulnerability / hold to sprint |
 | LOCK | Q | Toggle lock-on |
 
-Hits from behind do 50% more damage, so cover is worth using.
+The fight is a triangle, after Naraka: Bladepoint: normal attacks beat a parry, a charged strike beats
+normal attacks, and a parry beats a charged strike. Two normal swings that meet clash and both fighters
+are pushed back. Hits from behind do 50% more damage. Weapons are defined in `src/weapons.js`; any
+fighter can hold any of them.
 
 ## Fighters
 

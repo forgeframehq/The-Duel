@@ -58,10 +58,10 @@
   <div id="stick"><div id="knob"></div></div>
   <button id="btn-pause" aria-label="Pause"><svg viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.500 5H17v14h-3.500z"/></svg></button>
   <button id="btn-lock" class="btn" aria-label="Lock on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.500" fill="none" stroke-width="2"/><path d="M12 1.500v5M12 17.500v5M1.500 12h5M17.500 12h5" fill="none" stroke-width="2"/></svg><span>LOCK</span></button>
-  <button id="btn-heavy" class="btn" aria-label="Heavy attack"><svg viewBox="0 0 24 24"><path d="M12 2l2.800 6.200L21.500 9l-5 4.600 1.400 6.700L12 17l-5.900 3.300 1.400-6.700-5-4.600 6.700-.8z"/></svg><span>HEAVY</span></button>
+  <button id="btn-v" class="btn" aria-label="Vertical attack"><svg viewBox="0 0 24 24"><path d="M12 2.500v15M6.500 12.500l5.500 6 5.500-6" fill="none" stroke-width="2.800" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 21.500h14" fill="none" stroke-width="2.200" stroke-linecap="round"/></svg><span>CHOP</span></button>
   <button id="btn-dodge" class="btn" aria-label="Dodge"><svg viewBox="0 0 24 24"><path d="M4 12h11M11 6.500l6 5.500-6 5.500" fill="none" stroke-width="2.600" stroke-linecap="round" stroke-linejoin="round"/><path d="M20.500 5v14" fill="none" stroke-width="2.200" stroke-linecap="round"/></svg><span>DODGE</span></button>
-  <button id="btn-block" class="btn" aria-label="Block"><svg viewBox="0 0 24 24"><path d="M12 2.500l8 3v6c0 5-3.400 8.600-8 10-4.600-1.400-8-5-8-10v-6z"/></svg><span>BLOCK</span></button>
-  <button id="btn-attack" class="btn" aria-label="Attack"><svg viewBox="0 0 24 24"><path d="M20.500 2.500l-1 5.200-9.300 9.300-3.200-3.200 9.300-9.300zM6.200 14.600l3.200 3.200-1.600 1.600-1.200-.4-2 2-1.600-1.600 2-2-.4-1.200z"/></svg><span>ATTACK</span></button>
+  <button id="btn-parry" class="btn" aria-label="Parry"><svg viewBox="0 0 24 24"><path d="M12 2.500l8 3v6c0 5-3.400 8.600-8 10-4.600-1.400-8-5-8-10v-6z"/></svg><span>PARRY</span></button>
+  <button id="btn-h" class="btn" aria-label="Horizontal attack"><svg viewBox="0 0 24 24"><path d="M3 9c5-4 13-4 18 0" fill="none" stroke-width="2.800" stroke-linecap="round"/><path d="M16.500 4.500l5 4.300-6 2.200" fill="none" stroke-width="2.600" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 17.500h14" fill="none" stroke-width="2.200" stroke-linecap="round"/></svg><span>SLASH</span></button>
 </div>
 
 <div id="menu">
@@ -72,7 +72,7 @@
     <div id="menu-result"></div>
     <button id="start">FIGHT</button>
     <button id="change" class="ghost hidden">Change fighters</button>
-    <p id="hint">Left thumb moves. Drag the right side to look. Block just before a hit lands to parry. Strike from behind for extra damage.</p>
+    <p id="hint">Left thumb moves. Drag the right side to look. Tap Slash or Chop to attack, hold to charge. Parry a glowing strike.</p>
     <div class="studio-credit"><img src="assets/ui/studio_mark.png" alt=""><span>A Forge Frame game</span></div>
   </div>
 </div>
@@ -101,10 +101,10 @@
         </div>
       </div>
       <ul id="guide">
-        <li><b>Block</b> stops a light attack and opens them up</li>
-        <li><b>Heavy</b> breaks a block, but is slow</li>
-        <li><b>Attack</b> lands first and interrupts a heavy</li>
-        <li><b>Dodge</b> avoids anything, at a stamina cost</li>
+        <li><b>Slash</b> and <b>Chop</b>: tap to combo</li>
+        <li><b>Hold</b> either to charge a strike normal hits cannot stop</li>
+        <li><b>Parry</b> beats a charged strike and opens them up</li>
+        <li><b>Normal attacks</b> beat a parry. <b>Dodge</b> avoids anything</li>
       </ul>
       <button id="go">TO BATTLE</button>
     </aside>

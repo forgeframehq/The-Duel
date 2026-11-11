@@ -75,11 +75,12 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .btn svg { width: 42%; height: 42%; fill: currentColor; stroke: currentColor; stroke-width: 0; }
 .btn span { font-size: calc(var(--u) * 1.9); letter-spacing: .14em; margin-top: .3vh; opacity: .85; font-family: system-ui, sans-serif; font-weight: 600; }
 .btn.down { transform: scale(.9); background: linear-gradient(180deg, #f3d98a, #c99a3d 55%, #8a6220) padding-box, linear-gradient(180deg, #fff6d6, #9a7130) border-box; color: #2a1806; }
-#btn-attack { right: calc(var(--sr) + 3vw); bottom: calc(var(--sb) + 6vh); width: 26vh; height: 26vh;
+#btn-h { right: calc(var(--sr) + 3vw); bottom: calc(var(--sb) + 6vh); width: 26vh; height: 26vh;
   background: radial-gradient(circle at 35% 28%, rgba(176, 28, 20, .9), rgba(96, 10, 8, .9)) padding-box, var(--bevel) border-box; }
-#btn-block { right: calc(var(--sr) + 3vw + 28vh); bottom: calc(var(--sb) + 4vh); width: 20vh; height: 20vh; }
-#btn-dodge { right: calc(var(--sr) + 3vw + 24vh); bottom: calc(var(--sb) + 27vh); width: 18vh; height: 18vh; }
-#btn-heavy { right: calc(var(--sr) + 3vw + 3vh); bottom: calc(var(--sb) + 35vh); width: 18vh; height: 18vh; color: #ffb98a; }
+#btn-parry { right: calc(var(--sr) + 3vw + 28vh); bottom: calc(var(--sb) + 4vh); width: 20vh; height: 20vh; }
+#btn-dodge { right: calc(var(--sr) + 3vw + 26vh); bottom: calc(var(--sb) + 27vh); width: 17vh; height: 17vh; }
+#btn-v { right: calc(var(--sr) + 3vw + 2vh); bottom: calc(var(--sb) + 34vh); width: 22vh; height: 22vh; color: #ffd9a0; }
+.btn.charging { box-shadow: 0 0 3vh 1vh rgba(88, 180, 255, .85); border-color: #9fd4ff; }
 #btn-lock { right: calc(var(--sr) + 3vw + 50vh); bottom: calc(var(--sb) + 4vh); width: 14vh; height: 14vh; opacity: .6; }
 #btn-lock.want { opacity: .85; }
 #btn-lock.locked { opacity: 1; color: var(--gold); box-shadow: 0 0 2vh rgba(255, 150, 40, .6); }

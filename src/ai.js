@@ -1,14 +1,16 @@
 // ai.js — the CPU opponent. It only reads the world and returns a command object,
 // exactly like a human player's input does.
-import { hasLOS, angDiff, PARRY_WINDOW } from './sim.js';
+import { hasLOS, angDiff, armored } from './sim.js';
 
-// react: seconds before it responds. block/parry/dodge: chance of each answer to an incoming swing.
-// punish: chance it takes an opening. breakGuard: chance it answers a held block with a heavy attack.
-// smart: whether it knows to dodge a heavy attack instead of blocking it. guard: how often it circles with its shield up.
+// parry:  chance it parries a charged strike it sees coming.
+// dodge:  chance it dodges a normal swing (and a charged one it failed to parry).
+// armor:  chance it answers a normal swing by charging straight through it.
+// focus:  how often its own attack is a charged strike rather than a combo.
+// punish: chance it takes an opening. smart: whether it stops hitting a charging enemy and waits to parry.
 export const DIFFICULTY = {
-  easy: { react: 0.42, block: 0.3, parry: 0, dodge: 0.04, aggro: 0.38, heavy: 0.2, comboMax: 2, rest: 1.7, punish: 0.4, breakGuard: 0.15, smart: false, guard: 0.3 },
-  normal: { react: 0.26, block: 0.4, parry: 0.04, dodge: 0.12, aggro: 0.58, heavy: 0.22, comboMax: 3, rest: 1.1, punish: 0.75, breakGuard: 0.5, smart: true, guard: 0.45 },
-  hard: { react: 0.15, block: 0.48, parry: 0.15, dodge: 0.2, aggro: 0.8, heavy: 0.25, comboMax: 3, rest: 0.6, punish: 1, breakGuard: 0.85, smart: true, guard: 0.5 },
+  easy: { parry: 0.12, dodge: 0.06, armor: 0.04, aggro: 0.4, focus: 0.18, comboMax: 2, rest: 1.7, punish: 0.4, smart: false, feint: 0 },
+  normal: { parry: 0.4, dodge: 0.14, armor: 0.12, aggro: 0.58, focus: 0.26, comboMax: 3, rest: 1.1, punish: 0.75, smart: true, feint: 0.1 },
+  hard: { parry: 0.68, dodge: 0.22, armor: 0.22, aggro: 0.8, focus: 0.3, comboMax: 3, rest: 0.6, punish: 1, smart: true, feint: 0.25 },
 };
 
 function rng(seed) {
@@ -24,12 +26,20 @@ function rng(seed) {
 export function createAI(level = 'normal', seed = 1234) {
   return {
     p: DIFFICULTY[level] || DIFFICULTY.normal, rand: rng(seed),
-    mode: 'approach', modeT: 0, modeDur: 1, circleDir: 1, comboLeft: 0, wantHeavy: false,
-    seenSwing: -1, openingKey: '', blockKey: '', takeOpening: false, react: null, blockUntil: 0, lastSeen: null, clock: 0, lastRound: -1,
+    mode: 'approach', modeT: 0, modeDur: 1, circleDir: 1, comboLeft: 0, plan: 'combo', hold: null,
+    seenSwing: -1, openingKey: '', takeOpening: false, react: null, lastSeen: null, clock: 0, lastRound: -1,
   };
 }
 
-function setMode(ai, mode, dur) { ai.mode = mode; ai.modeT = 0; ai.modeDur = dur; ai.guarding = mode === 'circle' && ai.rand() < ai.p.guard; }
+function setMode(ai, mode, dur) { ai.mode = mode; ai.modeT = 0; ai.modeDur = dur; }
+
+// Decide what the next attack will be: a combo of normal hits, or a charged strike.
+function planAttack(ai, forceFocus = false) {
+  const r = ai.rand, p = ai.p;
+  ai.plan = forceFocus || r() < p.focus ? 'focus' : 'combo';
+  ai.comboLeft = ai.plan === 'focus' ? 1 : 1 + Math.floor(r() * p.comboMax);
+  setMode(ai, 'attack', 2.6);
+}
 
 // Push the desired direction away from, and around, nearby obstacles.
 function steer(w, f, dx, dz) {
@@ -59,10 +69,10 @@ function steer(w, f, dx, dz) {
 
 export function thinkAI(ai, w, selfIdx) {
   const f = w.fighters[selfIdx], e = w.fighters[1 - selfIdx], p = ai.p, r = ai.rand;
-  const cmd = { mx: 0, mz: 0, faceYaw: null, attack: false, heavy: false, block: false, dodge: false, sprint: false };
+  const cmd = { mx: 0, mz: 0, faceYaw: null, h: false, v: false, hHold: false, vHold: false, parry: false, dodge: false, sprint: false };
   const dt = 1 / 60;
   ai.clock += dt; ai.modeT += dt;
-  if (ai.lastRound !== w.round) { ai.lastRound = w.round; ai.lastSeen = null; ai.react = null; ai.blockUntil = 0; setMode(ai, 'approach', 1); }
+  if (ai.lastRound !== w.round) { ai.lastRound = w.round; ai.lastSeen = null; ai.react = null; ai.hold = null; setMode(ai, 'approach', 1); }
   if (w.phase !== 'fight' || f.state === 'dead' || e.state === 'dead') return cmd;
 
   const dx = e.x - f.x, dz = e.z - f.z, dist = Math.hypot(dx, dz) || 0.001;
@@ -70,6 +80,7 @@ export function thinkAI(ai, w, selfIdx) {
   if (los) ai.lastSeen = { x: e.x, z: e.z };
   const toE = Math.atan2(dx, dz);
   if (los && dist < 18) cmd.faceYaw = toE;
+  const reachBonus = f.stats.reach || 0;
 
   // Where to walk when heading for the enemy: straight at them, or to where they were last seen.
   let gx = e.x, gz = e.z;
@@ -78,59 +89,61 @@ export function thinkAI(ai, w, selfIdx) {
   const gd = Math.hypot(gx - f.x, gz - f.z) || 1;
   const ux = (gx - f.x) / gd, uz = (gz - f.z) / gd;
   const nx = dx / dist, nz = dz / dist;
+  const free = f.state === 'idle';
+
+  // --- A charge in progress: keep the button down until it is time to let go.
+  if (ai.hold) {
+    const started = f.state === 'charge' || (f.state === 'attack' && !f.atk.focus);
+    if (!started && ai.clock - ai.hold.start > 0.25) ai.hold = null;      // it never got going, or has been released
+    else if (ai.hold.feint && f.state === 'charge' && ai.clock >= ai.hold.until - 0.1) {
+      cmd.mx = -nz * ai.circleDir; cmd.mz = nx * ai.circleDir; cmd.dodge = true; ai.hold = null; // feint: dodge out of the charge
+      return cmd;
+    } else if (ai.clock < ai.hold.until || (dist > 3.2 + reachBonus && ai.clock < ai.hold.until + 0.5)) {
+      cmd[ai.hold.btn + 'Hold'] = true;
+      if (dist > 1.9) { cmd.mx = nx; cmd.mz = nz; }
+      return cmd;
+    } else ai.hold = null;
+  }
+  const beginHold = (btn, secs, feint = false) => { cmd[btn] = true; cmd[btn + 'Hold'] = true; ai.hold = { btn, start: ai.clock, until: ai.clock + secs, feint }; };
 
   // --- Defence: decide once per incoming swing how to answer it.
   if (e.state === 'attack' && e.swingId !== ai.seenSwing && los && dist < e.atk.range + (e.stats.reach || 0) + 1.2) {
     ai.seenSwing = e.swingId;
-    const impact = ai.clock + (e.atk.windup - e.t);
-    const roll = r();
-    if (roll < p.parry) ai.react = { type: 'block', at: impact - PARRY_WINDOW * 0.6, until: impact + 0.25 };
-    else if (e.atk.heavy && p.smart && roll < p.parry + p.block + p.dodge) ai.react = { type: 'dodge', at: Math.max(ai.clock + p.react, impact - 0.14) };
-    else if (roll < p.parry + p.block) {
-      // A plain block goes up early enough that it is not an accidental parry.
-      // If there is no time left to do that, the shield comes up late and this swing lands.
-      const early = impact - PARRY_WINDOW - 0.04;
-      const at = early >= ai.clock + 0.05 ? Math.min(ai.clock + p.react, early) : impact + 0.03;
-      // A late shield stays up long enough to stop the next swing of a combo.
-      ai.react = { type: 'block', at, until: impact + (early >= ai.clock + 0.05 ? 0.3 : 0.8) };
-    }
-    else if (roll < p.parry + p.block + p.dodge) ai.react = { type: 'dodge', at: Math.max(ai.clock + p.react, impact - 0.12) };
+    const impact = ai.clock + Math.max(0, e.atk.windup - e.t), roll = r();
+    if (e.atk.focus) {
+      if (roll < p.parry) ai.react = { type: 'parry', at: Math.max(ai.clock + 0.02, impact - 0.22) };
+      else if (roll < p.parry + p.dodge * 2) ai.react = { type: 'dodge', at: Math.max(ai.clock + 0.03, impact - 0.12) };
+      else ai.react = null;
+    } else if (roll < p.dodge) ai.react = { type: 'dodge', at: Math.max(ai.clock + 0.05, impact - 0.12) };
+    else if (roll < p.dodge + p.armor && free && f.stam > 35) ai.react = { type: 'armor', at: ai.clock };
     else ai.react = null;
   }
   if (ai.react && ai.clock >= ai.react.at) {
-    if (ai.react.type === 'block') ai.blockUntil = ai.react.until;
-    else if (f.state === 'idle' || f.state === 'block') {
+    const kind = ai.react.type;
+    ai.react = null;
+    if (kind === 'parry' && free) { cmd.parry = true; return cmd; }
+    if (kind === 'dodge' && free) {
       const side = r() < 0.5 ? 1 : -1, back = r() < 0.5;
       cmd.mx = back ? -nx : -nz * side; cmd.mz = back ? -nz : nx * side; cmd.dodge = true;
+      return cmd;
     }
-    ai.react = null;
-    if (cmd.dodge) return cmd;
-  }
-  if (ai.clock < ai.blockUntil && (f.state === 'idle' || f.state === 'block')) {
-    cmd.block = true; cmd.faceYaw = toE;
-    return cmd;
+    if (kind === 'armor' && free) { beginHold(r() < 0.5 ? 'h' : 'v', 0.4 + r() * 0.3); return cmd; }
   }
 
-  // --- Offence
   // Out of breath: back off and recover.
   if (f.winded > 0 && ai.mode !== 'retreat') setMode(ai, 'retreat', 1.4);
 
-  // An opening is the enemy off balance or recovering from a swing. Decide once per opening whether to take it.
-  const opening = (e.state === 'stagger' && e.staggerDur - e.t > 0.25) || (e.state === 'attack' && e.t > e.atk.windup + e.atk.active) || e.winded > 0.4;
-  const key = e.state + ':' + e.swingId + ':' + (e.state === 'stagger' ? Math.round((ai.clock - e.t) * 5) : 0);
-  if (opening && key !== ai.openingKey) { ai.openingKey = key; ai.takeOpening = r() < p.punish; }
-  if (opening && ai.takeOpening && dist < 3.4 + (f.stats.reach || 0) && f.stam > 20 && f.winded <= 0 && ai.mode !== 'attack' && los) {
-    ai.comboLeft = 1 + Math.floor(r() * p.comboMax); ai.wantHeavy = e.parried && r() < 0.7;
-    setMode(ai, 'attack', 2.5);
-  }
+  // A charging enemy shrugs off normal hits. A smart fighter stops swinging and gets ready to parry.
+  if (p.smart && armored(e) && ai.mode === 'attack' && ai.plan === 'combo') { ai.circleDir = r() < 0.5 ? 1 : -1; setMode(ai, 'circle', 0.5 + r() * 0.5); }
 
-  // A fighter hiding behind a shield gets a heavy attack, which breaks a block.
-  if (e.state === 'block' && e.blockT > 0.45 && los && dist < 3.4 && f.stam > 35 && f.winded <= 0 && ai.mode !== 'attack') {
-    const bk = 'block:' + Math.round((ai.clock - e.blockT) * 4);
-    if (bk !== ai.blockKey) {
-      ai.blockKey = bk;
-      if (r() < p.breakGuard) { ai.comboLeft = 1; ai.wantHeavy = true; setMode(ai, 'attack', 2.0); }
-    }
+  // An opening is the enemy off balance, recovering from a swing, out of breath or stuck in a missed parry.
+  const opening = (e.state === 'stagger' && e.staggerDur - e.t > 0.25) || (e.state === 'attack' && e.t > e.atk.windup + e.atk.active) || e.winded > 0.4 || (e.state === 'parry' && e.t > 0.08);
+  const key = e.state + ':' + e.swingId + ':' + Math.round((ai.clock - e.t) * 5);
+  if (opening && key !== ai.openingKey) { ai.openingKey = key; ai.takeOpening = r() < p.punish; }
+  if (opening && ai.takeOpening && dist < 3.4 + reachBonus && f.stam > 20 && f.winded <= 0 && ai.mode !== 'attack' && los) {
+    // A parried enemy is helpless long enough for a full charged strike; anything else gets a quick combo.
+    planAttack(ai, e.state === 'stagger' && e.parried && r() < 0.6);
+    if (!(e.state === 'stagger' && e.parried)) ai.plan = 'combo', ai.comboLeft = Math.max(ai.comboLeft, 2);
   }
 
   const facing = Math.abs(angDiff(f.yaw, toE)) < 0.5;
@@ -138,37 +151,34 @@ export function thinkAI(ai, w, selfIdx) {
     case 'approach': {
       const [sx, sz] = steer(w, f, ux, uz);
       cmd.mx = sx; cmd.mz = sz; cmd.sprint = dist > 9 && f.stam > 40;
-      if (los && dist < 3.3 + (f.stats.reach || 0)) {
-        if (f.stam > 35 && r() < p.aggro) { ai.comboLeft = 1 + Math.floor(r() * p.comboMax); ai.wantHeavy = r() < p.heavy; setMode(ai, 'attack', 2.5); }
+      if (los && dist < 3.3 + reachBonus) {
+        if (f.stam > 35 && r() < p.aggro) planAttack(ai);
         else { ai.circleDir = r() < 0.5 ? 1 : -1; setMode(ai, 'circle', 0.5 + r() * 1.1); }
       }
       break;
     }
     case 'circle': {
       // Strafe around the enemy while holding a comfortable distance.
-      const want = 3.1, radial = Math.max(-1, Math.min(1, (dist - want) * 0.9));
+      const want = 3.1 + reachBonus * 0.5, radial = Math.max(-1, Math.min(1, (dist - want) * 0.9));
       const [sx, sz] = steer(w, f, -nz * ai.circleDir + nx * radial, nx * ai.circleDir + nz * radial);
       cmd.mx = sx * 0.75; cmd.mz = sz * 0.75;
-      // Sometimes it circles behind its shield, which light attacks bounce off: break it with a heavy, or get round the side.
-      if (ai.guarding && dist < 4.5 && f.stam > 25 && (f.state === 'idle' || f.state === 'block')) cmd.block = true;
       if (!los || dist > 6) setMode(ai, 'approach', 1);
       else if (f.stam < 22) setMode(ai, 'retreat', 1.2 + r());
-      else if (ai.modeT > ai.modeDur) {
-        if (f.stam > 35 && r() < p.aggro) { ai.comboLeft = 1 + Math.floor(r() * p.comboMax); ai.wantHeavy = r() < p.heavy; setMode(ai, 'attack', 2.5); }
+      else if (ai.modeT > ai.modeDur && !(p.smart && armored(e))) {
+        if (f.stam > 35 && r() < p.aggro) planAttack(ai);
         else { if (r() < 0.4) ai.circleDir *= -1; setMode(ai, 'circle', 0.4 + r() * p.rest); }
       }
       break;
     }
     case 'attack': {
-      const reach = (ai.wantHeavy ? 2.3 : 2.0) + (f.stats.reach || 0) * 0.8;
+      const reach = (ai.plan === 'focus' ? 2.6 : 2.0) + reachBonus * 0.8;
       if (dist > reach) { const [sx, sz] = steer(w, f, ux, uz); cmd.mx = sx; cmd.mz = sz; }
-      const canStart = f.state === 'idle' || f.state === 'block';
-      const canChain = f.state === 'attack' && f.t > f.atk.windup + f.atk.active && !f.queued;
-      if (dist <= reach + 0.25 && facing && ai.comboLeft > 0 && (canStart || canChain) && f.stam > 16) {
-        if (ai.wantHeavy) { cmd.heavy = true; ai.wantHeavy = false; } else cmd.attack = true;
-        ai.comboLeft--;
+      const canChain = f.state === 'attack' && !f.atk.focus && f.t > f.atk.windup + f.atk.active && !f.queued;
+      if (dist <= reach + 0.25 && facing && ai.comboLeft > 0 && f.stam > 16) {
+        if (ai.plan === 'focus' && free) { beginHold(r() < 0.5 ? 'h' : 'v', 0.35 + r() * 0.6, r() < p.feint); ai.comboLeft = 0; }
+        else if (ai.plan === 'combo' && (free || canChain)) { cmd[r() < 0.6 ? 'h' : 'v'] = true; ai.comboLeft--; }
       }
-      const done = ai.comboLeft <= 0 && f.state === 'idle';
+      const done = ai.comboLeft <= 0 && free && !ai.hold;
       if (done || ai.modeT > ai.modeDur || !los || f.stam < 14) {
         ai.circleDir = r() < 0.5 ? 1 : -1;
         if (f.stam < 30 || r() > p.aggro) setMode(ai, 'retreat', 0.7 + r() * p.rest);

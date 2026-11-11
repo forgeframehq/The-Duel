@@ -58,7 +58,7 @@ const particles = new Particles(scene);
 const shake = new Shake();
 const input = new Input();
 
-let world = createWorld(arena, { ...fighters[0].stats }, { ...fighters[1].stats });
+let world = createWorld(arena, { ...fighters[0].stats, weapon: fighters[0].weapon }, { ...fighters[1].stats, weapon: fighters[1].weapon });
 let ai = createAI('normal');
 let level = 'normal';
 let app = 'menu';            // 'menu' | 'playing'
@@ -75,6 +75,7 @@ const hud = {
 };
 hud.pips.forEach((p) => { p.innerHTML = '<span></span>'.repeat(ROUNDS_TO_WIN); });
 
+const hBtn = $('btn-h'), vBtn = $('btn-v');
 function updateHud() {
   world.fighters.forEach((f, i) => {
     const hp = Math.max(0, f.hp / f.stats.maxHp) * 100, st = Math.max(0, f.stam / f.stats.maxStam) * 100;
@@ -82,6 +83,7 @@ function updateHud() {
     hud.st[i].style.width = st + '%';
     hud.st[i].classList.toggle('low', st < 22);
     hud.st[i].parentElement.classList.toggle('winded', f.winded > 0);
+    if (i === 0) { hBtn.classList.toggle('charging', f.state === 'charge' && f.charge === 'h'); vBtn.classList.toggle('charging', f.state === 'charge' && f.charge === 'v'); }
     [...hud.pips[i].children].forEach((el, k) => {
       // The rival's pips fill from the outside in, mirroring the player's.
       const idx = i === 0 ? k : ROUNDS_TO_WIN - 1 - k;
@@ -118,8 +120,8 @@ function label(text, x, y, z, cls = '') {
 function pulse(id, ms) { const el = $(id); el.classList.add('on'); setTimeout(() => el.classList.remove('on'), ms); }
 
 // One of these shows under the round banner, so the rules of the exchange sink in over a few rounds.
-const TIPS = ['Block stops a light attack, then strike back', 'A heavy attack breaks a block', 'Dodge the glowing heavy, then punish', 'Empty stamina leaves you exhausted',
-  'Hit first to interrupt a heavy', 'Block at the last moment to parry', 'A missed swing leaves you open', 'Strike from behind for extra damage'];
+const TIPS = ['Tap Slash or Chop to combo', 'Hold an attack to charge it', 'A charged strike cannot be stopped by normal hits', 'Parry a glowing strike to throw them open',
+  'Normal attacks beat a parry', 'Dodge out of a charge to feint', 'Empty stamina leaves you exhausted', 'Strike from behind for extra damage'];
 let tipIndex = 0;
 
 // ---------- Turning rule events into things you see, hear and feel ----------
@@ -141,6 +143,21 @@ function handleEvents() {
         break;
       }
       case 'evade': label('EVADE', e.x, 2.1, e.z, 'call'); break;
+      case 'armor':
+        // A normal hit soaked up by a charging fighter: blue sparks, no flinch.
+        hitStop = Math.max(hitStop, 0.04); shake.add(0.2);
+        particles.emit(e.x, 1.3, e.z, 14, 0x6ec0ff, 5, 0.35);
+        sfx.block();
+        label(String(Math.round(e.dmg)), e.x, 2.0, e.z, e.id === 0 ? '' : 'hurt');
+        break;
+      case 'clash':
+        hitStop = Math.max(hitStop, 0.09); shake.add(0.45);
+        particles.emit(e.x, 1.35, e.z, 30, 0xfff0b0, 8, 0.4);
+        sfx.block();
+        label('CLASH', e.x, 2.2, e.z, 'call');
+        buzz(30);
+        break;
+      case 'charge': sfx.charge(); break;
       case 'winded': {
         const f = world.fighters[e.id];
         label('EXHAUSTED', f.x, 2.3, f.z, e.id === 0 ? 'call hurt' : 'call');
@@ -158,7 +175,7 @@ function handleEvents() {
         label(String(Math.round(e.dmg)), e.x, 2.0, e.z, mine ? (e.heavy || e.backstab ? 'big' : '') : 'hurt');
         if (e.backstab) label('BACKSTAB', e.x, 2.5, e.z, 'call');
         else if (e.riposte) label('RIPOSTE', e.x, 2.5, e.z, 'call');
-        else if (e.counter) label('COUNTER', e.x, 2.5, e.z, 'call');
+        else if (e.punish) label('PUNISH', e.x, 2.5, e.z, 'call');
         if (!mine) { pulse('vignette', 120); buzz(e.heavy ? 90 : 45); } else buzz(20);
         if (e.kill) { slowT = 1.5; slowScale = 0.22; sfx.death(); pulse('flash', 60); }
         break;
@@ -273,7 +290,7 @@ function goFullscreen() {
 }
 
 function startMatch() {
-  world = createWorld(arena, { ...fighters[0].stats }, { ...fighters[1].stats });
+  world = createWorld(arena, { ...fighters[0].stats, weapon: fighters[0].weapon }, { ...fighters[1].stats, weapon: fighters[1].weapon });
   ai = createAI(level, (Date.now() & 0xffff) + 1);
   acc = 0; hitStop = 0; slowT = 0; paused = false; lockWanted = true; lastSecond = -1;
   app = 'playing'; input.enabled = true; input.reset();

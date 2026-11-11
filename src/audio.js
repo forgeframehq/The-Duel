@@ -103,6 +103,7 @@ export const sfx = {
   horn() { if (!play('horn', 0.55, 0)) synth.horn(); },
   victory() { play('victory_hit', 0.7, 0); },
   tick() { synth.tick(); },
+  charge() { tone(180, 0.18, 0.5, 'sawtooth', 2.6, 0.2); },
   // Menu sounds: 'tap', 'select', 'back' or 'start'.
   ui(kind) { play('ui_' + kind, kind === 'start' ? 0.7 : 0.5, 0.03); },
 };

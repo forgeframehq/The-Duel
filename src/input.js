@@ -8,8 +8,8 @@ export class Input {
   constructor() {
     this.joyX = 0; this.joyY = 0;       // -1..1, y is "forward"
     this.lookX = 0; this.lookY = 0;     // camera drag accumulated since last read, in pixels
-    this.block = false; this.dodgeHeld = 0; this.dodgeDown = false;
-    this.pressed = { attack: false, heavy: false, dodge: false };
+    this.hDown = false; this.vDown = false; this.dodgeHeld = 0; this.dodgeDown = false;
+    this.pressed = { h: false, v: false, parry: false, dodge: false };
     this.onLock = () => {}; this.onPause = () => {};
     this.keys = new Set();
     this.enabled = false;
@@ -23,9 +23,10 @@ export class Input {
     t.addEventListener('pointermove', (e) => this.move(e));
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) t.addEventListener(ev, (e) => this.up(e));
 
-    this.button($('btn-attack'), () => { this.pressed.attack = true; });
-    this.button($('btn-heavy'), () => { this.pressed.heavy = true; });
-    this.button($('btn-block'), () => { this.block = true; }, () => { this.block = false; });
+    // Tap an attack button for a normal attack; keep it held to charge.
+    this.button($('btn-h'), () => { this.pressed.h = true; this.hDown = true; }, () => { this.hDown = false; });
+    this.button($('btn-v'), () => { this.pressed.v = true; this.vDown = true; }, () => { this.vDown = false; });
+    this.button($('btn-parry'), () => { this.pressed.parry = true; });
     this.button($('btn-dodge'), () => { this.pressed.dodge = true; this.dodgeDown = true; this.dodgeHeld = 0; }, () => { this.dodgeDown = false; });
     this.button($('btn-lock'), () => this.onLock());
     this.button($('btn-pause'), () => this.onPause());
@@ -34,8 +35,9 @@ export class Input {
       if (e.repeat) return;
       const k = e.code;
       this.keys.add(k);
-      if (k === 'KeyJ') this.pressed.attack = true;
-      if (k === 'KeyK') this.pressed.heavy = true;
+      if (k === 'KeyJ') this.pressed.h = true;
+      if (k === 'KeyK') this.pressed.v = true;
+      if (k === 'KeyL') this.pressed.parry = true;
       if (k === 'Space') { this.pressed.dodge = true; this.dodgeDown = true; this.dodgeHeld = 0; e.preventDefault(); }
       if (k === 'KeyQ') this.onLock();
       if (k === 'Escape' || k === 'KeyP') this.onPause();
@@ -95,8 +97,8 @@ export class Input {
   }
 
   reset() {
-    this.block = false; this.dodgeDown = false; this.dodgeHeld = 0;
-    this.pressed.attack = this.pressed.heavy = this.pressed.dodge = false;
+    this.hDown = this.vDown = false; this.dodgeDown = false; this.dodgeHeld = 0;
+    this.pressed.h = this.pressed.v = this.pressed.parry = this.pressed.dodge = false;
     this.lookX = this.lookY = 0;
   }
 
@@ -117,11 +119,11 @@ export class Input {
     const s = Math.sin(camYaw), c = Math.cos(camYaw);
     const cmd = {
       mx: s * jy - c * jx, mz: c * jy + s * jx, faceYaw,
-      attack: this.pressed.attack, heavy: this.pressed.heavy, dodge: this.pressed.dodge,
-      block: this.block || k.has('KeyL') || k.has('ShiftLeft') || k.has('ShiftRight'),
+      h: this.pressed.h, v: this.pressed.v, parry: this.pressed.parry, dodge: this.pressed.dodge,
+      hHold: this.hDown || k.has('KeyJ'), vHold: this.vDown || k.has('KeyK'),
       sprint: this.dodgeDown && this.dodgeHeld > SPRINT_HOLD,
     };
-    this.pressed.attack = this.pressed.heavy = this.pressed.dodge = false;
+    this.pressed.h = this.pressed.v = this.pressed.parry = this.pressed.dodge = false;
     return cmd;
   }
 }

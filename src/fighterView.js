@@ -3,22 +3,13 @@
 // and at what point in it, so a swing on screen lands exactly when the rules say it does.
 import * as THREE from 'three';
 import { loadCharacter, loadClips } from './models.js';
+import { weaponOf } from './weapons.js';
 
 export const TEAM = { blue: 0x2f63c4, red: 0xb3180f, neutral: 0x8a1c14 };
 
 const LOWER = new Set(['Hips', 'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase']);
 
-// For each attack in the rules: [clip, start, moment the blow lands, end], in seconds of the clip.
-const MOVES = {
-  sword: {
-    slashR: ['Triple_Combo_Attack', 0.3, 0.77, 1.1], slashL: ['Triple_Combo_Attack', 1.1, 1.53, 1.85],
-    overhead: ['Triple_Combo_Attack', 1.85, 2.23, 2.9], heavy: ['Charged_Ground_Slam', 0.3, 1.66, 2.7],
-  },
-  spear: {
-    slashR: ['Thrust_Slash', 0.3, 0.73, 1.1], slashL: ['Thrust_Slash', 1.1, 1.4, 1.9],
-    overhead: ['Right_Hand_Sword_Slash', 0.1, 0.53, 1.1], heavy: ['Charged_Ground_Slam', 0.3, 1.66, 2.7],
-  },
-};
+const FOCUS_GLOW = new THREE.Color(0x58b4ff); // a charging weapon burns blue
 
 const std = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, ...o });
 function part(geo, mat, x = 0, y = 0, z = 0) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; return m; }
@@ -175,6 +166,7 @@ export class FighterView {
     // A divine blade is pale gold and always glows a little; a heavy attack makes it blaze.
     this.baseGlow = 0;
     if (def.weapon === 'divine') { this.bladeMat.color.set(0xfff0c4); this.bladeMat.emissive.set(0xffc23a); this.baseGlow = 0.55; this.bladeMat.emissiveIntensity = 0.55; }
+    this.baseEmissive = this.bladeMat.emissive.clone();
     const weapon = buildWeapon(def.weapon, this.bladeMat);
     this.tip = weapon.tip; this.base = weapon.base;
     // The clips were not made with a weapon in hand, so these angles are a best fit across all the moves:
@@ -189,7 +181,8 @@ export class FighterView {
     this.root.add(this.ring);
 
     this.mixer = new THREE.AnimationMixer(model);
-    this.moves = MOVES[def.weapon] || MOVES.sword;
+    this.weapon = weaponOf(def.weapon);
+    const w = this.weapon, clipsUsed = [...w.h, ...w.v, w.focusH, w.focusV].map((a) => a.anim[0]);
     this.actions = {}; this.weights = {};
     const add = (name, clip) => {
       const a = this.mixer.clipAction(clip);
@@ -197,7 +190,7 @@ export class FighterView {
       this.actions[name] = a; this.weights[name] = 0;
     };
     const sub = (clip, tag, keep) => new THREE.AnimationClip(clip.name + tag, clip.duration, clip.tracks.filter((t) => keep(t.name.slice(0, t.name.lastIndexOf('.')))));
-    const need = new Set(['Combat_Stance', 'Run_02', 'Block2', 'Hit_Reaction_1', 'Hit_Reaction', 'Shot_and_Fall_Backward', ...Object.values(this.moves).map((m) => m[0])]);
+    const need = new Set(['Combat_Stance', 'Run_02', 'Block2', 'Hit_Reaction_1', 'Hit_Reaction', 'Shot_and_Fall_Backward', 'Sword_Parry', ...clipsUsed]);
     for (const name of need) add(name, clips.get(name));
     add('Combat_Stance#lower', sub(clips.get('Combat_Stance'), '#lower', (b) => LOWER.has(b)));
     add('Run_02#lower', sub(clips.get('Run_02'), '#lower', (b) => LOWER.has(b)));
@@ -221,14 +214,20 @@ export class FighterView {
 
     switch (f.state) {
       case 'attack': {
-        const a = f.atk, [clip, start, hit, end] = this.moves[a.name];
+        const a = f.atk, [clip, start, hit, end] = a.anim;
         const t = f.t < a.windup ? start + (hit - start) * (f.t / a.windup) : hit + (end - hit) * Math.min(1, (f.t - a.windup) / (a.active + a.recover));
         want[clip] = 1; A[clip].timeScale = 0; A[clip].time = t; fade = 22;
         break;
       }
-      case 'block':
-        want['Block2#upper'] = 1; A['Block2#upper'].timeScale = 0; A['Block2#upper'].time = 0.55;
-        loco('#lower'); fade = 18;
+      case 'charge': {
+        // Wound back and held, trembling, until the button is let go.
+        const atk = f.charge === 'h' ? this.weapon.focusH : this.weapon.focusV, clip = atk.anim[0];
+        const ease = Math.min(1, f.t / 0.28), shake = Math.sin(f.t * 55) * 0.012 * Math.min(1, f.t / 0.6);
+        want[clip] = 1; A[clip].timeScale = 0; A[clip].time = atk.hold - 0.3 * (1 - ease) + shake; fade = 16;
+        break;
+      }
+      case 'parry':
+        want.Sword_Parry = 1; A.Sword_Parry.timeScale = 0; A.Sword_Parry.time = 0.12 + Math.min(1, f.t / 0.72) * 1.05; fade = 30;
         break;
       case 'dodge':
         want.Run_02 = 1; A.Run_02.timeScale = 2.2; fade = 25;
@@ -277,8 +276,12 @@ export class FighterView {
     this.tilt.rotation.x += (bx - this.tilt.rotation.x) * tk; this.tilt.rotation.z += (bz - this.tilt.rotation.z) * tk;
 
     // Heavy attacks glow while charging so they can be read and answered on a small screen.
-    const charging = f.state === 'attack' && f.atk.heavy && f.t < f.atk.windup + f.atk.active;
-    const glow = charging ? this.baseGlow + smooth(f.t / f.atk.windup) * 2.4 : this.baseGlow;
+    // A charging weapon burns blue, brighter the longer it is held, and stays lit until the strike has landed.
+    const striking = f.state === 'attack' && f.atk.focus && f.t < f.atk.windup + f.atk.active;
+    const focus = f.state === 'charge' ? 0.35 + 0.65 * smooth(f.t / 0.9) : striking ? 1 : 0;
+    this.focusMix = (this.focusMix || 0) + (focus - (this.focusMix || 0)) * Math.min(1, 14 * dt);
+    this.bladeMat.emissive.copy(this.baseEmissive).lerp(FOCUS_GLOW, Math.min(1, this.focusMix * 1.5));
+    const glow = this.baseGlow + this.focusMix * 3.2;
     this.bladeMat.emissiveIntensity += (glow - this.bladeMat.emissiveIntensity) * Math.min(1, 20 * dt);
     this.ring.material.opacity = f.state === 'dead' ? 0.25 : 0.75;
   }

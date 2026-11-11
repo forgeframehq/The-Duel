@@ -21,7 +21,7 @@ const v = await FighterView.create(byId(id), 'neutral');
 v.ring.visible = false;
 scene.add(v.root);
 const f = { x: 0, z: 0, vx: 0, vz: 0, yaw: 0.75, state: 'idle', t: 0 };
-if (q.get('atk')) { const sim = await import('../src/sim.js'); f.state = 'attack'; f.atk = sim.LIGHT[0]; f.t = f.atk.windup * +q.get('atk'); f.yaw = +(q.get('yaw') || 0.45); }
+if (q.get('atk')) { const { WEAPONS } = await import('../src/weapons.js'); f.state = 'attack'; f.atk = WEAPONS.sword.h[0]; f.t = f.atk.windup * +q.get('atk'); f.yaw = +(q.get('yaw') || 0.45); }
 if (q.get('state')) { f.state = q.get('state'); f.yaw = +(q.get('yaw') || 0.3); }
 v.snap(f); v.update(f, 0.4);
 cam.position.set(0.15, 1.35, 3.9); cam.lookAt(0.05, 1.02, 0);
