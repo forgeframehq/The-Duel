@@ -105,35 +105,6 @@ function buildWeapon(kind, bladeMat) {
   return { g, tip, base };
 }
 
-function buildShield(team, style) {
-  // Kite shield, face along +Z, strap at the origin.
-  const divine = style === 'divine';
-  const s = new THREE.Shape(), w = divine ? 0.24 : 0.2, top = divine ? 0.3 : 0.26, bot = divine ? -0.5 : -0.4;
-  s.moveTo(0, top); s.quadraticCurveTo(w, top, w, top - 0.2); s.quadraticCurveTo(w * 0.92, -0.15, 0, bot);
-  s.quadraticCurveTo(-w * 0.92, -0.15, -w, top - 0.2); s.quadraticCurveTo(-w, top, 0, top);
-  const g = new THREE.Group(), gold = std(divine ? 0xf0c64e : 0xc9a04a, { metalness: divine ? 0.85 : 0.6, roughness: divine ? 0.25 : 0.4 });
-  const rim = part(new THREE.ExtrudeGeometry(s, { depth: 0.03, bevelEnabled: false }), gold, 0, 0, 0);
-  rim.scale.set(1.07, 1.05, 1);
-  const face = part(new THREE.ExtrudeGeometry(s, { depth: 0.03, bevelEnabled: false }), std(divine ? 0xf2ecdc : TEAM[team], { roughness: divine ? 0.45 : 0.75, metalness: divine ? 0.25 : 0 }), 0, 0, 0.012);
-  g.add(rim, face);
-  if (divine) {
-    // White enamel with a golden sunburst; the gem at its centre carries the team colour.
-    const cy = 0.02;
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2, long = i % 3 === 0, len = long ? 0.2 : 0.12;
-      const ray = part(new THREE.ConeGeometry(long ? 0.022 : 0.016, len, 4), gold, Math.sin(a) * (0.07 + len / 2), cy + Math.cos(a) * (0.07 + len / 2), 0.047);
-      ray.rotation.z = -a; ray.scale.z = 0.3;
-      g.add(ray);
-    }
-    const disc = part(new THREE.CylinderGeometry(0.085, 0.085, 0.02, 20), gold, 0, cy, 0.05);
-    disc.rotation.x = Math.PI / 2;
-    const gem = part(new THREE.SphereGeometry(0.045, 10, 8), std(TEAM[team], { emissive: TEAM[team], emissiveIntensity: 0.9, roughness: 0.2 }), 0, cy, 0.058);
-    gem.scale.z = 0.6;
-    g.add(disc, gem);
-  } else g.add(part(new THREE.SphereGeometry(0.06, 8, 6), std(0xd9b45a, { metalness: 0.7, roughness: 0.3 }), 0, 0.05, 0.05));
-  return g;
-}
-
 function attach(bone, object, rot, pos = [0, 0, 0]) {
   // Bones live in centimetre space; undo that so gear can be built in metres.
   const ws = new THREE.Vector3(); bone.getWorldScale(ws);
@@ -170,9 +141,8 @@ export class FighterView {
     const weapon = buildWeapon(def.weapon, this.bladeMat);
     this.tip = weapon.tip; this.base = weapon.base;
     // The clips were not made with a weapon in hand, so these angles are a best fit across all the moves:
-    // a sword sits diagonally out of the fist, a spear lies along the palm, the shield faces out from the forearm.
+    // a sword sits diagonally out of the fist, a spear lies along the palm, and nobody carries a shield: defence is the parry and the dodge.
     attach(bones.RightHand, weapon.g, def.weapon === 'spear' ? [Math.PI / 2, 0, 0] : [Math.PI / 4, 0, 0]);
-    attach(bones.LeftForeArm, buildShield(team, def.weapon), [0, -Math.PI * 0.75, 0], [-0.04, 0.16, -0.04]);
     this.chest = bones.Spine01 || bones.Spine;
 
     // Coloured ring on the ground so the two sides are never confused, even with the same fighter.

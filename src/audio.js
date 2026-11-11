@@ -108,4 +108,62 @@ export const sfx = {
   ui(kind) { play('ui_' + kind, kind === 'start' ? 0.7 : 0.5, 0.03); },
 };
 
+// ---------- Music ----------
+// Tracks are streamed, not decoded up front. Battle tracks alternate and cross-fade into each other.
+// Music sits well under the sound effects and dips further on big moments.
+const MUSIC_URL = new URL('../assets/music/', import.meta.url).href;
+const TRACKS = { menu: ['menu'], battle: ['battle1', 'battle2'], victory: ['victory'], defeat: ['defeat'] };
+const MUSIC_LEVEL = 0.26, FADE = 2.8;
+let musicOn = true, musicKind = null, current = null, lastTrack = '', duckMul = 1, duckTimer = 0;
+try { musicOn = localStorage.getItem('duel.music') !== 'off'; } catch { /* storage unavailable */ }
+const musicTarget = () => (musicOn ? MUSIC_LEVEL * duckMul : 0);
+
+function fadeTo(audio, to, secs, then) {
+  clearInterval(audio._fade);
+  const from = audio.volume, t0 = performance.now();
+  audio._fade = setInterval(() => {
+    const k = Math.min(1, (performance.now() - t0) / (secs * 1000));
+    audio.volume = Math.max(0, Math.min(1, from + (to - from) * k));
+    if (k >= 1) { clearInterval(audio._fade); then?.(); }
+  }, 50);
+}
+
+function startTrack() {
+  const list = TRACKS[musicKind];
+  // Never the same battle track twice in a row.
+  const pool = list.length > 1 ? list.filter((n) => n !== lastTrack) : list;
+  const name = lastTrack = pool[Math.floor(Math.random() * pool.length)];
+  const a = new Audio(MUSIC_URL + name + '.mp3');
+  a.volume = 0; a.loop = musicKind === 'menu';
+  a.addEventListener('timeupdate', () => {
+    // Cross-fade into the next track a few seconds before this one ends.
+    if (a === current && !a.loop && !a._handed && a.duration && a.duration - a.currentTime < FADE + 0.4 && musicKind === 'battle') { a._handed = true; startTrack(); }
+  });
+  const old = current;
+  current = a;
+  a.play().then(() => fadeTo(a, musicTarget(), FADE)).catch(() => { /* waits for the first tap; see music.resume */ });
+  if (old) fadeTo(old, 0, FADE, () => { old.pause(); old.src = ''; });
+}
+
+export const music = {
+  // 'menu', 'battle', 'victory' or 'defeat'. Asking for what is already playing does nothing.
+  play(kind) { if (kind === musicKind) return; musicKind = kind; startTrack(); },
+  // Browsers only allow sound after a tap, so the first tap anywhere calls this.
+  resume() { if (current && current.paused && musicKind) current.play().then(() => fadeTo(current, musicTarget(), FADE)).catch(() => {}); },
+  // Drop the music for a moment so a big hit or a knockout can be heard.
+  duck(level = 0.35, secs = 1.2) {
+    duckMul = level; if (current) fadeTo(current, musicTarget(), 0.15);
+    clearTimeout(duckTimer);
+    duckTimer = setTimeout(() => { duckMul = 1; if (current) fadeTo(current, musicTarget(), 1.2); }, secs * 1000);
+  },
+  quiet(on) { duckMul = on ? 0.4 : 1; if (current) fadeTo(current, musicTarget(), 0.4); },
+  get on() { return musicOn; },
+  toggle() {
+    musicOn = !musicOn;
+    try { localStorage.setItem('duel.music', musicOn ? 'on' : 'off'); } catch { /* storage unavailable */ }
+    if (current) { if (musicOn && current.paused) current.play().catch(() => {}); fadeTo(current, musicTarget(), 0.5); }
+    return musicOn;
+  },
+};
+
 export function buzz(ms) { if (navigator.vibrate) { try { navigator.vibrate(ms); } catch { /* not supported */ } } }

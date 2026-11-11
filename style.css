@@ -87,6 +87,12 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 #btn-pause { position: absolute; pointer-events: auto; left: 50%; top: calc(var(--st) + 19vh); width: 9vh; height: 9vh; margin-left: -15.5vh; opacity: .5; }
 #btn-pause svg { width: 60%; height: 60%; fill: var(--bone); }
 #btn-cam { position: absolute; pointer-events: auto; left: 50%; top: calc(var(--st) + 19vh); width: 9vh; height: 9vh; margin-left: 6.5vh; opacity: .55; }
+#btn-music { position: absolute; pointer-events: auto; left: 50%; top: calc(var(--st) + 19vh); width: 9vh; height: 9vh; margin-left: -4.5vh; opacity: .55; }
+#btn-music svg { width: 70%; height: 70%; stroke: var(--bone); }
+#btn-music .slash { display: none; stroke: #ff6b57; }
+#btn-music.off { opacity: .4; } #btn-music.off .slash { display: block; }
+.ghost.small { padding: 1vh 2.5vw; font-size: calc(var(--u) * 2.4); margin-top: 1.5vh; }
+.ghost.small.off { opacity: .6; }
 #btn-cam svg { width: 70%; height: 70%; stroke: var(--bone); }
 
 /* ---------- Menu ---------- */

@@ -36,7 +36,9 @@ come from that repo's `models` branch and are shrunk for phones by `tools/build_
 - `src/models.js` – loads characters and the shared motion library. `src/fighterView.js` – picks the clip and moment to show for each state, attaches weapons, applies team colour.
 - `src/arena.js` – scenery plus the obstacle list used for collision and line of sight.
 - `src/main.js` – render loop, camera, HUD, hit-stop, slow motion.
-- `src/fx.js`, `src/audio.js`, `src/input.js` – particles and trails, synthesised sound, touch and keyboard.
+- `src/fx.js`, `src/audio.js`, `src/input.js` – particles and trails, sound effects and music, touch and keyboard.
+- `assets/music` – menu theme, alternating battle tracks, victory and defeat (made with Suno).
+- `src/courtyard.js` – the castle courtyard arena, arranged from the scenery kit in `assets/scenery/kit`.
 - `assets/models` – characters and `anims.glb`. `assets/portraits` – select-screen portraits (rendered with `tools/portrait.html`).
 - `tools/viewer.html` – poses a character at any moment of any clip, for tuning attack timings.
 - `vendor/` – three.js r187 and its GLTF loader.

@@ -10,9 +10,11 @@ import { Particles, Trail, Shake } from './fx.js';
 import { Input } from './input.js';
 import { byId } from './roster.js';
 import { initSelect, resolveRival } from './select.js';
-import { sfx, unlockAudio, buzz } from './audio.js';
+import { sfx, music, unlockAudio, buzz } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
+// Shown on the title screen, so it is easy to tell which version is on a phone. Raise it with every update.
+const BUILD = 16;
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
@@ -189,7 +191,7 @@ function handleEvents() {
         else if (e.riposte) label('RIPOSTE', e.x, 2.5, e.z, 'call');
         else if (e.punish) label('PUNISH', e.x, 2.5, e.z, 'call');
         if (!mine) { pulse('vignette', 120); buzz(e.heavy ? 90 : 45); } else buzz(20);
-        if (e.kill) { slowT = 1.5; slowScale = 0.22; sfx.death(); pulse('flash', 60); }
+        if (e.kill) { music.duck(0.25, 2.5); slowT = 1.5; slowScale = 0.22; sfx.death(); pulse('flash', 60); }
         break;
       }
       case 'block':
@@ -202,7 +204,7 @@ function handleEvents() {
       case 'parry':
         hitStop = Math.max(hitStop, 0.16); shake.add(0.5); slowT = 0.4; slowScale = 0.4;
         particles.emit(e.x, 1.35, e.z, 46, 0xfff6d0, 9, 0.5);
-        sfx.parry(); pulse('flash', 50);
+        sfx.parry(); pulse('flash', 50); music.duck(0.4, 0.9);
         label('PARRY', e.x, 2.3, e.z, 'call');
         if (e.id === 0) buzz(40);
         break;
@@ -219,7 +221,7 @@ function handleEvents() {
         setTimeout(() => banner(title, sub, 2.4), e.timeout ? 0 : 700);
         break;
       }
-      case 'matchover': if (e.winner === 0) sfx.victory(); showMenu(e.winner === 0 ? 'VICTORY' : 'DEFEAT', `${world.score[0]} – ${world.score[1]}`); break;
+      case 'matchover': if (e.winner === 0) sfx.victory(); music.play(e.winner === 0 ? 'victory' : 'defeat'); showMenu(e.winner === 0 ? 'VICTORY' : 'DEFEAT', `${world.score[0]} – ${world.score[1]}`); break;
     }
   }
   world.events.length = 0;
@@ -347,6 +349,7 @@ function startMatch() {
   ai = createAI(level, (Date.now() & 0xffff) + 1);
   acc = 0; hitStop = 0; slowT = 0; paused = false; lockWanted = true; lastSecond = -1;
   app = 'playing'; input.enabled = true; input.reset();
+  music.play('battle');
   $('menu').classList.add('hidden'); $('hud').classList.remove('hidden'); $('controls').classList.remove('hidden');
   $('you-name').textContent = fighters[0].name.toUpperCase();
   $('foe-name').textContent = fighters[1].name.toUpperCase();
@@ -371,7 +374,7 @@ const select = initSelect({
     startMatch();
   },
 });
-function openSelect() { goFullscreen(); $('menu').classList.add('hidden'); select.open(); }
+function openSelect() { goFullscreen(); music.play('menu'); $('menu').classList.add('hidden'); select.open(); }
 $('start').addEventListener('click', () => { if ($('menu-result').textContent && views.length === 2) { goFullscreen(); startMatch(); } else openSelect(); });
 $('change').addEventListener('click', openSelect);
 // Menu sounds for every button outside the fight controls.
@@ -385,6 +388,7 @@ input.onLock = () => { lockWanted = !lockWanted; if (!lockWanted) locked = false
 function setPaused(v) {
   if (app !== 'playing') return;
   paused = v; $('paused').classList.toggle('hidden', !v);
+  music.quiet(v);
   if (!v) lastTime = performance.now();
 }
 input.onPause = () => setPaused(!paused);
@@ -445,6 +449,14 @@ function frame(now) {
   renderer.render(scene, camera);
 }
 
+// Music: the menu theme starts on the first tap (browsers do not allow sound before one).
+music.play('menu');
+addEventListener('pointerdown', () => { unlockAudio(); music.resume(); }, { once: true });
+function showMusic() { for (const el of document.querySelectorAll('.music-toggle')) { el.classList.toggle('off', !music.on); el.setAttribute('aria-pressed', music.on); if (el.dataset.text) el.textContent = 'Music: ' + (music.on ? 'On' : 'Off'); } }
+for (const el of document.querySelectorAll('.music-toggle')) el.addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); music.toggle(); showMusic(); });
+showMusic();
+
+$('build').textContent = ' · build ' + BUILD;
 showMenu('THE DUEL');
 world.events.length = 0;
 // Two fighters stand in the ring behind the menu while the player decides.

@@ -11,7 +11,7 @@
 // and `hold` is the moment of the clip a fighter freezes on while charging.
 
 const SWORD = {
-  label: 'Sword and shield',
+  label: 'Sword',
   h: [
     { name: 'h1', anim: ['Triple_Combo_Attack', 0.3, 0.77, 1.1], windup: 0.26, active: 0.12, recover: 0.24, dmg: 9, stam: 7, range: 2.35, arc: 1.1, lunge: 3.0, stagger: 0.32, knock: 3 },
     { name: 'h2', anim: ['Triple_Combo_Attack', 1.1, 1.53, 1.85], windup: 0.24, active: 0.12, recover: 0.24, dmg: 9, stam: 7, range: 2.35, arc: 1.1, lunge: 3.0, stagger: 0.32, knock: 3 },
@@ -32,7 +32,7 @@ function tuned(base, label, time, dmg, extra = {}) {
 }
 
 const SPEAR = {
-  label: 'Spear and shield',
+  label: 'Spear',
   h: [
     { name: 'h1', anim: ['Thrust_Slash', 1.1, 1.4, 1.9], windup: 0.28, active: 0.12, recover: 0.28, dmg: 9, stam: 7, range: 2.5, arc: 1.0, lunge: 3.0, stagger: 0.32, knock: 3.5 },
     { name: 'h2', anim: ['Right_Hand_Sword_Slash', 0.1, 0.53, 1.1], windup: 0.28, active: 0.12, recover: 0.34, dmg: 10, stam: 8, range: 2.5, arc: 1.0, lunge: 3.0, stagger: 0.36, knock: 4 },
@@ -47,9 +47,9 @@ const SPEAR = {
 
 export const WEAPONS = {
   sword: SWORD,
-  divine: { ...SWORD, label: 'Divine sword and shield' },
+  divine: { ...SWORD, label: 'Divine sword' },
   // The mace keeps the big hammer swing for its charged horizontal strike.
-  mace: tuned({ ...SWORD, focusH: { ...SWORD.focusH, anim: ['Heavy_Hammer_Swing', 1.05, 1.53, 1.8], hold: 1.05 } }, 'Mace and shield', 1.15, 1.2),
+  mace: tuned({ ...SWORD, focusH: { ...SWORD.focusH, anim: ['Heavy_Hammer_Swing', 1.05, 1.53, 1.8], hold: 1.05 } }, 'Mace', 1.15, 1.2),
   spear: SPEAR,
 };
 
