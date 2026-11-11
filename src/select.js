@@ -20,7 +20,7 @@ export function initSelect({ onGo, onBack }) {
     }
     const f = byId(id);
     $('d-portrait').style.visibility = ''; $('d-portrait').src = PORTRAITS + f.id + '.webp';
-    $('d-origin').textContent = f.origin + ' · ' + (f.weapon === 'spear' ? 'Spear and shield' : 'Sword and shield');
+    $('d-origin').textContent = f.origin + ' · ' + ({ spear: 'Spear and shield', mace: 'Mace and shield' }[f.weapon] || 'Sword and shield');
     $('d-name').textContent = f.name; $('d-blurb').textContent = f.blurb;
     $('d-stats').innerHTML = STAT_BARS.map(([label, key, lo, hi]) => {
       const pct = Math.round(Math.max(0.04, Math.min(1, (f.stats[key] - lo) / (hi - lo))) * 100);

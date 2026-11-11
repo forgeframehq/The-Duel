@@ -65,6 +65,19 @@ function buildWeapon(kind, bladeMat) {
     g.add(part(new THREE.CylinderGeometry(0.018, 0.02, 2.1, 7), wood, 0, 0.45, 0));
     g.add(part(new THREE.ConeGeometry(0.045, 0.3, 6), bladeMat, 0, 1.65, 0), part(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 7), gold, 0, 1.48, 0));
     tipY = 1.8; baseY = 0.9;
+  } else if (kind === 'mace') {
+    g.add(part(new THREE.CylinderGeometry(0.022, 0.026, 0.78, 8), wood, 0, 0.27, 0), part(new THREE.SphereGeometry(0.04, 7, 5), gold, 0, -0.13, 0));
+    g.add(part(new THREE.CylinderGeometry(0.04, 0.04, 0.05, 8), gold, 0, 0.64, 0));
+    const head = part(new THREE.IcosahedronGeometry(0.105, 0), bladeMat, 0, 0.77, 0);
+    g.add(head);
+    // Flanges round the head
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2, spike = part(new THREE.ConeGeometry(0.03, 0.1, 5), bladeMat, Math.cos(a) * 0.12, 0.77, Math.sin(a) * 0.12);
+      spike.rotation.set(0, -a, -Math.PI / 2);
+      g.add(spike);
+    }
+    g.add(part(new THREE.ConeGeometry(0.03, 0.1, 5), bladeMat, 0, 0.9, 0));
+    tipY = 0.92; baseY = 0.45;
   } else {
     g.add(part(new THREE.CylinderGeometry(0.02, 0.02, 0.2, 7), wood, 0, 0, 0), part(new THREE.SphereGeometry(0.035, 7, 5), gold, 0, -0.12, 0));
     g.add(part(new THREE.BoxGeometry(0.035, 0.035, 0.24), gold, 0, 0.11, 0), part(new THREE.BoxGeometry(0.014, 0.88, 0.07), bladeMat, 0, 0.56, 0));

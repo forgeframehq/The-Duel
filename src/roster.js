@@ -29,6 +29,10 @@ export const ROSTER = [
   { id: 'plate_knight', name: 'The Black Knight', origin: 'The Iron Gate', weapon: 'sword', cloth: 'red',
     blurb: 'Sworn champion of the Iron Gate, sealed in blackened plate from helm to heel. He is slow to reach you and tires early, but blows that would fell another man barely turn his head.',
     stats: { maxHp: 115, maxStam: 90, power: 1.1, armor: 0.22, speed: 4.0, reach: 0 } },
+  // Made from a concept image (tools/fighters/sun_warlord.png).
+  { id: 'sun_warlord', name: 'Aurelian the Sun-Crowned', origin: 'The Gilded Order', weapon: 'mace',
+    blurb: 'A warlord in white and gold who has never lost in the arena. His mace lands like a falling wall and his armour turns most blows, but all that plate makes him the slowest man on the sand.',
+    stats: { maxHp: 112, maxStam: 85, power: 1.3, armor: 0.2, speed: 3.8, reach: 0 } },
 ];
 
 export const byId = (id) => ROSTER.find((r) => r.id === id) || ROSTER[0];
