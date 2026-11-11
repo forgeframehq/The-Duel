@@ -132,6 +132,16 @@ Seen in his screenshot, not confirmed by him:
 16. **Colour:** our courtyard is orange-brown with flat purple cut-out mountains; the reference is natural greens with soft light and haze. Re-grade our colours and lighting toward that, and replace the flat mountains with believable distant hills.
 17. **Closer camera:** the reference camera sits close behind the fighter, who fills about a third of the screen height. Ours is far back and the rival is tiny.
 
+**D. Less boxy, quality first (his requests, 11 Nov)**
+
+His rule: **looks come first; he does not care how big the game is.** Phones that can't cope turn the settings down. So build for the best look and make everything heavy switchable.
+
+18. **Scenery:** replace block-built walls, towers and pillars with sculpted Meshy models; real textures with surface bumps on stone and ground; grass tufts, bushes, ivy, rubble, uneven ground, swaying trees; layered misty hills instead of cut-out mountains.
+19. **Lighting:** distance haze, glow around fires and sun, soft contact shadows, colour grade.
+20. **Characters less boxy:** the fighters are shrunk for phones by `tools/build_models.mjs` (half the triangles thrown away, textures cut to 1024 px, about 1 to 1.7 MB each). Ship fuller versions from the full-size sources on the `models` branch: more triangles, larger textures, smooth shading and surface-detail maps, and softer cloth and hair. Regenerate any fighter that is still blocky at source at a higher Meshy detail level.
+21. **Graphics settings** (in the settings menu from item 14): quality presets (Low / Medium / High / Ultra) covering model and texture detail, grass density, shadows, glow and haze, screen sharpness, and a frame-rate choice (30 / 60).
+22. **Heat and battery guard, as in Dawn of Dynasties.** That game made phones hot until commit `ebecec8` ("Cooler phones", 4 Nov): a 60 fps cap that drops to 30 when the phone struggles, plus removing a costly per-frame effect; it also pauses all work when the app is left (`js/game.js`, "Frame cap"). The Duel has **no cap at all** today: it draws as fast as the screen refreshes (up to 120 or 144 times a second on newer phones), at up to 2x sharpness, with shadows on. It does already pause when the app is left. Add the same frame cap before adding heavier graphics.
+
 ### Backlog (waiting on Sudhi's go-ahead)
 
 1. Real specials for the eight Dawn of Dynasties fighters (currently all Second Wind).
