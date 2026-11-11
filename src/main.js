@@ -43,7 +43,7 @@ scene.add(arena.group);
 
 // The two fighters on screen. Filled in once their models have loaded.
 let views = [];
-let fighters = [byId('sun_warlord'), byId('franks_knight')];
+let fighters = [byId('sun_warlord'), byId('varek')];
 let fighterRequest = 0;
 async function setFighters(youId, rivalId) {
   const request = ++fighterRequest;

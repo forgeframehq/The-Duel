@@ -6,6 +6,11 @@ export const ROSTER = [
   { id: 'sun_warlord', name: 'Aurelian the Sun-Crowned', origin: 'The Gilded Order', weapon: 'divine',
     blurb: 'A warlord in white and gold who has never lost in the arena. He carries Dawnbreaker, a blade said to hold the first light of morning, and a shield bearing the sun. Every blow lands like judgement, but all that plate makes him the slowest man on the sand.',
     stats: { maxHp: 112, maxStam: 85, power: 1.3, armor: 0.2, speed: 3.8, reach: 0.1 } },
+  // Aurelian's rival. Made from tools/fighters/varek.png. He is meant to carry a two-handed greatsword;
+  // until that weapon type exists he fights with a plain sword and shield.
+  { id: 'varek', name: 'Varek the Oathbreaker', origin: 'The Fallen', weapon: 'sword',
+    blurb: 'Once a knight of the Gilded Order who fought at Aurelian\'s side, cast out for breaking his vow. His armour has blackened and his colours hang in rags. Quicker and harder to tire than the man he once followed, and less forgiving of his own mistakes.',
+    stats: { maxHp: 100, maxStam: 110, power: 1.2, armor: 0.12, speed: 4.5, reach: 0 } },
   { id: 'franks_knight', name: 'Frankish Knight', origin: 'Franks', weapon: 'sword',
     blurb: 'Mail, shield and a straight sword. No weakness, no tricks.',
     stats: { maxHp: 100, maxStam: 100, power: 1.0, armor: 0.1, speed: 4.4, reach: 0 } },
