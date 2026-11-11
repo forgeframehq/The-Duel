@@ -78,6 +78,33 @@ function buildWeapon(kind, bladeMat) {
     gem.scale.x = 1.5;
     g.add(sun, gem);
     tipY = 1.15; baseY = 0.25;
+  } else if (kind === 'katana') {
+    // A long, slender blade with a gentle backward curve, a round gold guard and a grip bound in crimson cord.
+    const L = 0.74, N = 18, W = 0.031, edge = [], spine = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N, y = t * L, bend = -0.07 * t * t, taper = t < 0.88 ? 1 - t * 0.12 : (1 - 0.88 * 0.12) * Math.max(0.02, 1 - Math.pow((t - 0.88) / 0.12, 1.6));
+      spine.push([bend - W / 2, y]); edge.push([bend - W / 2 + W * taper, y]);
+    }
+    const sh = new THREE.Shape();
+    sh.moveTo(...edge[0]); for (const p of edge.slice(1)) sh.lineTo(...p); for (const p of spine.reverse()) sh.lineTo(...p); sh.closePath();
+    const blade = part(new THREE.ExtrudeGeometry(sh, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.0025, bevelSize: 0.0025, bevelSegments: 1 }), bladeMat, 0.002, 0.15, 0);
+    blade.rotation.y = -Math.PI / 2;
+    g.add(blade);
+    const bright = std(0xe2b94e, { metalness: 0.85, roughness: 0.28 }), dark = std(0x241a14, { metalness: 0.4, roughness: 0.5 });
+    g.add(part(new THREE.BoxGeometry(0.012, 0.028, 0.034), bright, 0, 0.16, 0));                    // collar at the foot of the blade
+    const guard = part(new THREE.CylinderGeometry(0.05, 0.05, 0.007, 28), dark, 0, 0.142, 0); guard.scale.set(0.8, 1, 1); g.add(guard);
+    const rim = part(new THREE.TorusGeometry(0.05, 0.004, 6, 28), bright, 0, 0.142, 0); rim.rotation.x = Math.PI / 2; rim.scale.set(0.8, 1, 1); g.add(rim);
+    // the grip: black lacquer under crimson cord wound in diamonds
+    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 256;
+    const c2 = cv.getContext('2d'); c2.fillStyle = '#8f1420'; c2.fillRect(0, 0, 64, 256); c2.fillStyle = '#141010';
+    for (let r = 0; r < 9; r++) for (let k = 0; k < 2; k++) { const cx = k * 32 + (r % 2 ? 16 : 0), cy = r * 30 + 8; c2.beginPath(); c2.moveTo(cx, cy - 10); c2.lineTo(cx + 9, cy); c2.lineTo(cx, cy + 10); c2.lineTo(cx - 9, cy); c2.closePath(); c2.fill(); c2.beginPath(); c2.moveTo(cx + 64, cy - 10); c2.lineTo(cx + 73, cy); c2.lineTo(cx + 64, cy + 10); c2.lineTo(cx + 55, cy); c2.closePath(); c2.fill(); }
+    const wrap = new THREE.CanvasTexture(cv); wrap.colorSpace = THREE.SRGBColorSpace;
+    const grip = part(new THREE.CylinderGeometry(0.0165, 0.018, 0.27, 14), new THREE.MeshStandardMaterial({ map: wrap, roughness: 0.75 }), 0, 0, 0); grip.scale.set(0.82, 1, 1); g.add(grip);
+    g.add(part(new THREE.CylinderGeometry(0.019, 0.019, 0.018, 14), bright, 0, 0.128, 0), part(new THREE.CylinderGeometry(0.02, 0.017, 0.024, 14), bright, 0, -0.145, 0));
+    // a crimson tassel hanging from the pommel
+    const red = std(0xa3141f, { roughness: 0.8 });
+    g.add(part(new THREE.CylinderGeometry(0.003, 0.003, 0.06, 5), red, 0, -0.185, 0.012), part(new THREE.SphereGeometry(0.011, 8, 6), bright, 0, -0.215, 0.012), part(new THREE.ConeGeometry(0.014, 0.09, 8), red, 0, -0.265, 0.012));
+    tipY = 0.87; baseY = 0.2;
   } else if (kind === 'spear') {
     g.add(part(new THREE.CylinderGeometry(0.018, 0.02, 2.1, 7), wood, 0, 0.45, 0));
     g.add(part(new THREE.ConeGeometry(0.045, 0.3, 6), bladeMat, 0, 1.65, 0), part(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 7), gold, 0, 1.48, 0));
@@ -138,6 +165,7 @@ export class FighterView {
     // A divine blade is pale gold and always glows a little; a heavy attack makes it blaze.
     this.baseGlow = 0;
     if (def.weapon === 'divine') { this.bladeMat.color.set(0xfff0c4); this.bladeMat.emissive.set(0xffc23a); this.baseGlow = 0.55; this.bladeMat.emissiveIntensity = 0.55; }
+    if (def.weapon === 'katana') { this.bladeMat.color.set(0xf2f6f8); this.bladeMat.metalness = 0.95; this.bladeMat.roughness = 0.16; this.bladeMat.emissive.set(0xff2a3c); }
     this.baseEmissive = this.bladeMat.emissive.clone();
     const weapon = buildWeapon(def.weapon, this.bladeMat);
     this.tip = weapon.tip; this.base = weapon.base;

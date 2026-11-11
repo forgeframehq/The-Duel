@@ -174,7 +174,7 @@ async function shot(size, screen) {
 }
 
 // Fight on the open field: the courtyard is too slow to draw in the test browser.
-await page.addInitScript(() => { try { localStorage.setItem('duel.arena', 'field'); localStorage.setItem('duel.music', 'off'); } catch { /* no storage */ } });
+await page.addInitScript(() => { try { localStorage.setItem('duel.arena2', 'field'); localStorage.setItem('duel.music', 'off'); } catch { /* no storage */ } });
 fs.rmSync(OUT, { recursive: true, force: true });
 await page.goto(`${BASE}/index.html?arena=field`);
 await page.waitForFunction(() => !document.getElementById('studio') && document.getElementById('build').textContent, null, { timeout: 60000 });

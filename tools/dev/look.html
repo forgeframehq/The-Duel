@@ -1,0 +1,29 @@
+<!doctype html><meta charset="utf-8"><title>Model look</title>
+<style>body{margin:0;background:#6d7b86}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "../../vendor/three.module.js" } }</script>
+<canvas id="c"></canvas>
+<script type="module">
+// Dev tool: shows any .glb from four sides in one picture. ?src=<path from the repo root>&h=<fit height>
+import * as THREE from 'three';
+import { GLTFLoader } from '../../vendor/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from '../../vendor/libs/meshopt_decoder.module.js';
+const q = new URLSearchParams(location.search), W = innerWidth, H = innerHeight;
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H, false); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.setScissorTest(true);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x777766, 1.5));
+const sun = new THREE.DirectionalLight(0xfff0d8, 2.6); sun.position.set(-3, 5, 4); scene.add(sun);
+const gltf = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync('../../' + q.get('src'));
+scene.add(gltf.scene);
+const box = new THREE.Box3().setFromObject(gltf.scene), size = box.getSize(new THREE.Vector3()), mid = box.getCenter(new THREE.Vector3());
+if (q.get('axes')) scene.add(new THREE.AxesHelper(Math.max(size.x, size.y, size.z) * 0.6));
+let tris = 0; gltf.scene.traverse((o) => { if (o.isMesh) tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; });
+window.info = { size: size.toArray().map((v) => +v.toFixed(3)), min: box.min.toArray().map((v) => +v.toFixed(3)), tris, bones: (() => { const b = []; gltf.scene.traverse((o) => o.isBone && b.push(o.name)); return b.length; })() };
+const cam = new THREE.PerspectiveCamera(30, (W / 4) / H, 0.01, 1000), r = Math.max(size.y, size.x, size.z) * 2.3;
+[[0, 0], [Math.PI / 2, 0], [Math.PI, 0], [0.7, 0.5]].forEach(([yaw, pitch], i) => {
+  renderer.setViewport(i * W / 4, 0, W / 4, H); renderer.setScissor(i * W / 4, 0, W / 4, H);
+  cam.position.set(mid.x + Math.sin(yaw) * Math.cos(pitch) * r, mid.y + Math.sin(pitch) * r, mid.z + Math.cos(yaw) * Math.cos(pitch) * r); cam.lookAt(mid);
+  renderer.render(scene, cam);
+});
+window.ready = true;
+</script>

@@ -122,6 +122,8 @@ i.v::after, b.v::after { width: 16%; height: 62%; }
 #btn-music.off { opacity: .4; } #btn-music.off .slash { display: block; }
 .ghost.small { padding: 1vh 2.5vw; min-height: 40px; font-size: max(10px, calc(var(--u) * 2.4)); margin-top: 1.5vh; }
 .ghost.small.off { opacity: .6; }
+.menu-row { display: flex; justify-content: center; gap: 1.5vw; }
+.menu-row .ghost { margin-left: 0; margin-right: 0; }
 
 /* ---------- Menu ---------- */
 #menu, #paused, #rotate { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; }
@@ -203,6 +205,7 @@ i.v::after, b.v::after { width: 16%; height: 62%; }
 .arenas button { position: relative; flex: 1; height: 12vh; min-height: 44px; overflow: hidden; border-radius: 9px; border: 1.5px solid transparent;
   background: linear-gradient(180deg, #4a321b, #1c120a) padding-box, linear-gradient(180deg, #7c5418, #3a280f) border-box; opacity: .7; }
 .arenas button::before { content: ""; position: absolute; inset: 0; background: center / cover no-repeat; }
+.arenas button[data-arena=meadow]::before { background-image: url(assets/ui/arena_meadow.webp); }
 .arenas button[data-arena=courtyard]::before { background-image: url(assets/ui/arena_courtyard.webp); }
 .arenas button[data-arena=field]::before { background-image: url(assets/ui/arena_field.webp); }
 .arenas b { position: absolute; left: 0; right: 0; bottom: 0; padding: 2.2vh .4vw .7vh; font-size: max(9px, calc(var(--u) * 2.2)); letter-spacing: .06em; background: linear-gradient(transparent, rgba(8, 5, 3, .9) 60%); text-shadow: 0 1px 0 #000; }

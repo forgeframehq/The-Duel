@@ -9,7 +9,8 @@ and are arranged into arenas by the game's code, so a small kit builds many plac
 import json, os, sys, urllib.request
 from new_fighter import call, wait, MODEL
 
-STYLE = " Weathered medieval castle ruin, rough grey-brown stone blocks with moss and wear, realistic, highly detailed game environment asset, single isolated object, no ground plane, no background."
+# The shared look. PROP_STYLE replaces it for pieces that are not castle stone (the grassland map, weapons).
+STYLE = os.environ.get("PROP_STYLE", " Weathered medieval castle ruin, rough grey-brown stone blocks with moss and wear, realistic, highly detailed game environment asset, single isolated object, no ground plane, no background.")
 
 
 def main(pid, prompt, out, tris):

@@ -6,20 +6,22 @@ import { STRINGS, attackFor } from './weapons.js';
 import { createAI, thinkAI } from './ai.js';
 import { buildCourtyard } from './courtyard.js';
 import { buildArena } from './arena.js';
+import { buildMeadow } from './meadow.js';
 import { FighterView } from './fighterView.js';
 import { Particles, Trail, Shake } from './fx.js';
 import { Input } from './input.js';
 import { byId } from './roster.js';
 import { initSelect, resolveRival } from './select.js';
 import { sfx, music, unlockAudio, buzz } from './audio.js';
+import { QUALITY, nextQuality } from './quality.js';
 
 const $ = (id) => document.getElementById(id);
 // Shown on the title screen, so it is easy to tell which version is on a phone. Raise it with every update.
-const BUILD = 18;
+const BUILD = 19;
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-renderer.shadowMap.enabled = true;
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, QUALITY.pixels));
+renderer.shadowMap.enabled = QUALITY.shadows > 0;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
@@ -29,35 +31,59 @@ scene.fog = new THREE.Fog(0xe9b27a, 40, 180);
 const camera = new THREE.PerspectiveCamera(58, 1, 0.1, 500);
 
 // Golden hour, to match the look of Dawn of Dynasties: low warm sun, cool sky fill.
-scene.add(new THREE.HemisphereLight(0xffe0b8, 0x5a5236, 1.5));
+// Each arena can bring its own light (see applyLook); these are the castle's.
+const hemi = new THREE.HemisphereLight(0xffe0b8, 0x5a5236, 1.5);
+scene.add(hemi);
 // A cool fill from the opposite side keeps fighters readable when the sun is behind them.
 const fill = new THREE.DirectionalLight(0xa8bfe6, 0.9);
 fill.position.set(24, 16, -22);
 scene.add(fill);
 const sun = new THREE.DirectionalLight(0xffc27a, 3.0);
 sun.position.set(-30, 20, 26);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.castShadow = QUALITY.shadows > 0;
+sun.shadow.mapSize.set(QUALITY.shadows || 512, QUALITY.shadows || 512);
 Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 90 });
 sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.03;
 scene.add(sun);
 
-// Two arenas, chosen on the fighter select screen: the castle courtyard and the open field.
+// Three arenas, chosen on the fighter select screen: the meadow, the castle courtyard and the open field.
 // Each is built the first time it is picked and kept after that. (?arena=field in the address starts on the field.)
 const query = new URLSearchParams(location.search);
+const BUILDERS = { meadow: buildMeadow, courtyard: buildCourtyard, field: buildArena };
+// The light an arena is seen in: haze, sky fill, sun and the cool fill opposite it.
+const CASTLE_LOOK = { fog: [0xe9b27a, 40, 180], hemi: [0xffe0b8, 0x5a5236, 1.5], sun: [0xffc27a, 3.0, -30, 20, 26], fill: [0xa8bfe6, 0.9], exposure: 1.1,
+  env: [0x5a6f9c, 0xf0a45c, 0x5a5236], envIntensity: 0.3 };
+function applyLook(look) {
+  scene.fog.color.set(look.fog[0]); scene.fog.near = look.fog[1]; scene.fog.far = look.fog[2];
+  hemi.color.set(look.hemi[0]); hemi.groundColor.set(look.hemi[1]); hemi.intensity = look.hemi[2];
+  sun.color.set(look.sun[0]); sun.intensity = look.sun[1]; sun.position.set(look.sun[2], look.sun[3], look.sun[4]);
+  fill.color.set(look.fill[0]); fill.intensity = look.fill[1]; fill.position.set(-look.sun[2] * 0.8, 16, -look.sun[4] * 0.85);
+  renderer.toneMappingExposure = look.exposure;
+  // Some arenas also light metal and polished surfaces from their sky, so armour and blades catch it.
+  if (look.env && !look.envMap) {
+    const s = new THREE.Scene(), g = new THREE.SphereGeometry(10, 24, 12), p = g.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
+    const [top, mid, low] = look.env.map((h) => new THREE.Color(h));
+    for (let i = 0; i < p.count; i++) { const h = p.getY(i) / 10; if (h > 0) c.copy(mid).lerp(top, Math.min(1, h * 1.6)); else c.copy(mid).lerp(low, Math.min(1, -h * 4)); col.set([c.r, c.g, c.b], i * 3); }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    s.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+    const pm = new THREE.PMREMGenerator(renderer); look.envMap = pm.fromScene(s, 0.03).texture; pm.dispose(); g.dispose();
+  }
+  scene.environment = look.envMap || null; scene.environmentIntensity = look.envIntensity || 1;
+}
 const arenas = {};
 let arena = null, arenaId = '';
 function setArena(id) {
-  id = id === 'field' ? 'field' : 'courtyard';
+  if (!BUILDERS[id]) id = 'meadow';
   if (id === arenaId) return;
   if (arena) scene.remove(arena.group);
-  arena = arenas[id] || (arenas[id] = id === 'field' ? buildArena() : buildCourtyard());
+  arena = arenas[id] || (arenas[id] = BUILDERS[id]());
   arenaId = id;
   scene.add(arena.group);
+  applyLook(arena.look || CASTLE_LOOK);
 }
 let savedArena = null;
-try { savedArena = localStorage.getItem('duel.arena'); } catch { /* storage unavailable */ }
-setArena(query.get('arena') || savedArena || 'courtyard');
+try { savedArena = localStorage.getItem('duel.arena2'); } catch { /* storage unavailable */ }
+setArena(query.get('arena') || savedArena || 'meadow');
 
 // The two fighters on screen. Filled in once their models have loaded.
 let views = [];
@@ -228,7 +254,7 @@ function handleEvents() {
         if (e.kind === 'sunburst') {
           sfx.charge(); pulse('flash', 90);
           setTimeout(() => { ring(f.x, f.z, 0xffd45a, 5.2, 0.5); ring(f.x, f.z, 0xfff6d0, 3.4, 0.4); particles.emit(f.x, 1.2, f.z, 70, 0xffd76a, 11, 0.7, 2); sfx.parry(); shake.add(0.7); }, 430);
-        } else if (e.kind === 'rush') { sfx.swing(true); particles.emit(f.x, 0.4, f.z, 24, 0xc02018, 5, 0.5, 2, 0.6); }
+        } else if (e.kind === 'rush' || e.kind === 'flash') { sfx.swing(true); particles.emit(f.x, 0.4, f.z, e.kind === 'flash' ? 40 : 24, e.kind === 'flash' ? 0xff2a3c : 0xc02018, 5, 0.5, 2, 0.6); if (e.kind === 'flash') ring(f.x, f.z, 0xff4a5a, 2.6, 0.35); }
         else { sfx.horn(); ring(f.x, f.z, 0x9fd4ff, 2.4, 0.5); particles.emit(f.x, 1, f.z, 30, 0x9fd4ff, 4, 0.7, -2); }
         break;
       }
@@ -526,10 +552,16 @@ $('moves').innerHTML = STRINGS.map((m) => `<li><span class="seq">${[...m.seq].ma
 // ---------- Main loop ----------
 // Frame cap, as in Dawn of Dynasties: 60 frames a second, falling to 30 if the phone struggles.
 // Without it a 120 Hz screen draws twice as often as needed, which only makes heat.
-let capGap = 1000 / 60, slowAvg = 0, lastFrame = 0;
+let capGap = 1000 / 60, slowAvg = 0, lastFrame = 0, gapAvg = 16, slowFor = 0, slowTold = false;
 function frame(now) {
   requestAnimationFrame(frame);
   if (now - lastFrame < capGap * 0.9) return;
+  // If the picture has been arriving slower than about 35 times a second for a while in a fight, say how to fix it (once).
+  if (app === 'playing' && !paused && lastFrame) {
+    gapAvg += (Math.min(200, now - lastFrame) - gapAvg) * 0.05;
+    slowFor = gapAvg > 28 ? slowFor + (now - lastFrame) / 1000 : 0;
+    if (slowFor > 6 && !slowTold && QUALITY.id !== 'low') { slowTold = true; toast('Running slow? Lower Graphics on the title screen'); }
+  }
   lastFrame = now;
   const work0 = performance.now();
   step(now);
@@ -569,7 +601,7 @@ function step(now) {
   });
   particles.update(dt * scale);
   updateRings(dt * scale);
-  arena.update?.(dt * scale, now / 1000);
+  arena.update?.(dt * scale, now / 1000, views.length === 2 ? views.map((v) => v.root.position) : null);
   shake.update(dt);
   updateCamera(dt);
   window.__duel.debug?.(camera);
@@ -584,6 +616,9 @@ for (const el of document.querySelectorAll('.music-toggle')) el.addEventListener
 showMusic();
 
 $('build').textContent = ' · build ' + BUILD;
+// Graphics level: tap to step through Low, Medium, High, Ultra. The game restarts at the new level.
+$('quality').textContent = 'Graphics: ' + QUALITY.name;
+$('quality').addEventListener('click', () => { $('quality').textContent = 'Graphics: ' + nextQuality() + '…'; setTimeout(() => location.reload(), 150); });
 showMenu('THE DUEL');
 world.events.length = 0;
 // Two fighters stand in the ring behind the menu while the player decides.
@@ -591,4 +626,4 @@ setFighters(fighters[0].id, fighters[1].id).then(() => views.forEach((v, i) => v
 requestAnimationFrame(frame);
 
 // Handy for testing from the browser console.
-window.__duel = { renderInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }), get world() { return world; }, get ai() { return ai; }, input, cam, get views() { return views; }, startMatch, setFighters, setArena, get fps() { return Math.round(1000 / capGap); }, setLevel: (l) => { level = l; } };
+window.__duel = { renderInfo: () => ({ calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }), get world() { return world; }, get ai() { return ai; }, input, cam, get views() { return views; }, startMatch, setFighters, setArena, quality: QUALITY, get arena() { return arena; }, get fps() { return Math.round(1000 / capGap); }, setLevel: (l) => { level = l; } };

@@ -80,7 +80,7 @@
     <button id="start">FIGHT</button>
     <button id="change" class="ghost hidden">Change fighters</button>
     <p id="hint">Left thumb moves, drag the right side to look. Two attacks: a sideways slash and a downward slash. Press them in different orders for different finishers.</p>
-    <button class="music-toggle ghost small" data-text="1">Music: On</button>
+    <div class="menu-row"><button class="music-toggle ghost small" data-text="1">Music: On</button><button id="quality" class="ghost small">Graphics: High</button></div>
     <div class="studio-credit"><img src="assets/ui/studio_mark.png" alt=""><span>A Forge Frame game</span><span id="build"></span></div>
   </div>
 </div>
@@ -111,7 +111,8 @@
       <div class="skill arena-pick">
         <span>Arena</span>
         <div class="arenas" role="group" aria-label="Arena">
-          <button data-arena="courtyard" class="on"><b>Castle Courtyard</b></button>
+          <button data-arena="meadow" class="on"><b>Whispering Meadow</b></button>
+          <button data-arena="courtyard"><b>Castle Courtyard</b></button>
           <button data-arena="field"><b>Open Field</b></button>
         </div>
       </div>
@@ -124,6 +125,6 @@
 <div id="rotate"><div><svg viewBox="0 0 48 48"><rect x="15" y="6" width="18" height="36" rx="3" fill="none" stroke-width="2.500"/><path d="M38 30a14 14 0 0 1-10 12M40 24l-2 6-6-2" fill="none" stroke-width="2.500" stroke-linecap="round" stroke-linejoin="round"/></svg>Turn your phone sideways</div></div>
 
 <!-- The number after ?v= changes with every update so phones fetch the new game instead of a saved copy. -->
-<script type="module" src="src/main.js?v=18"></script>
+<script type="module" src="src/main.js?v=19"></script>
 </body>
 </html>

@@ -7,8 +7,8 @@ const $ = (id) => document.getElementById(id);
 const PORTRAITS = new URL('../assets/portraits/', import.meta.url).href;
 
 export function initSelect({ onGo, onBack }) {
-  const picks = { you: ROSTER[0].id, rival: 'random', level: 'normal', arena: 'courtyard' };
-  try { const saved = localStorage.getItem('duel.arena'); if (saved === 'field' || saved === 'courtyard') picks.arena = saved; } catch { /* storage unavailable */ }
+  const picks = { you: ROSTER[0].id, rival: 'random', level: 'normal', arena: 'meadow' };
+  try { const saved = localStorage.getItem('duel.arena2'); if (['meadow', 'courtyard', 'field'].includes(saved)) picks.arena = saved; } catch { /* storage unavailable */ }
   let side = 'you', shown = picks.you;
   const roster = $('roster');
 
@@ -54,7 +54,7 @@ export function initSelect({ onGo, onBack }) {
   const showArena = () => document.querySelectorAll('.arenas button').forEach((x) => x.classList.toggle('on', x.dataset.arena === picks.arena));
   document.querySelectorAll('.arenas button').forEach((b) => b.addEventListener('click', () => {
     picks.arena = b.dataset.arena; showArena();
-    try { localStorage.setItem('duel.arena', picks.arena); } catch { /* storage unavailable */ }
+    try { localStorage.setItem('duel.arena2', picks.arena); } catch { /* storage unavailable */ }
   }));
   showArena();
   $('sel-back').addEventListener('click', () => { $('select').classList.add('hidden'); onBack(); });

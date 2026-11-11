@@ -23,6 +23,8 @@ API = "https://api.meshy.ai/openapi"
 MODEL = os.environ.get("MESHY_MODEL", "latest")
 # Refuse to pay more than this for the shape step; the task is cancelled for a refund if it would.
 MAX_PREVIEW = int(os.environ.get("MESHY_MAX_PREVIEW", "30"))
+# How many triangles to ask for. 30,000 was the old phone-first setting; fighters made from build 19 on use far more.
+POLY = int(os.environ.get("MESHY_POLY", "30000"))
 
 
 def call(method, path, body=None):
@@ -55,7 +57,7 @@ def from_image(fid, image, out, rec, save):
         uri = f"data:image/{ext};base64," + base64.b64encode(open(image, "rb").read()).decode()
         rec["model"] = call("POST", "/v1/image-to-3d", {
             "image_url": uri, "ai_model": MODEL, "should_texture": True, "enable_pbr": True, "pose_mode": "a-pose",
-            "should_remesh": True, "topology": "triangle", "target_polycount": 30000, "target_formats": ["glb"]})["result"]
+            "should_remesh": True, "topology": "triangle", "target_polycount": POLY, "target_formats": ["glb"]})["result"]
         save()
         cost = call("GET", f"/v1/image-to-3d/{rec['model']}").get("consumed_credits", 0)
         print("image-to-3d cost:", cost, flush=True)
@@ -82,7 +84,7 @@ def main(fid, source, out):
     if not rec.get("preview"):
         rec["preview"] = call("POST", "/v2/text-to-3d", {
             "mode": "preview", "prompt": prompt[:800], "ai_model": MODEL, "pose_mode": "a-pose",
-            "should_remesh": True, "topology": "triangle", "target_polycount": 30000, "target_formats": ["glb"]})["result"]
+            "should_remesh": True, "topology": "triangle", "target_polycount": POLY, "target_formats": ["glb"]})["result"]
         save()
         cost = call("GET", f"/v2/text-to-3d/{rec['preview']}").get("consumed_credits", 0)
         print("preview cost:", cost, flush=True)

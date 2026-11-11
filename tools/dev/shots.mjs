@@ -17,10 +17,11 @@ const errs = []; p.on('pageerror', (e) => errs.push(e.message)); p.on('console',
 const face = (fam, w, f) => `@font-face{font-family:"${fam}";font-weight:${w};src:url(${BASE}/tools/dev/fonts/${f}) format("woff2")}`;
 await p.route('**/fonts.googleapis.com/**', (r) => r.fulfill({ contentType: 'text/css', body: [600, 700, 800].map((w) => face('Cinzel', w, `cinzel-latin-${w}-normal.woff2`)).join('') + face('Cinzel Decorative', 700, 'cinzel-decorative-latin-700-normal.woff2') }));
 await p.route('**/fonts.gstatic.com/**', (r) => r.abort());
-await p.addInitScript((a) => { try { localStorage.setItem('duel.arena', a); localStorage.setItem('duel.music', 'off'); } catch {} }, arena);
+await p.addInitScript((a) => { try { localStorage.setItem('duel.arena2', a); localStorage.setItem('duel.music', 'off'); } catch {} }, arena);
 fs.mkdirSync(out, { recursive: true });
 await p.goto(`${BASE}/index.html`); await p.waitForFunction(() => !document.getElementById('studio'), null, { timeout: 60000 });
 await p.evaluate(() => document.getElementById('start').click()); await p.waitForTimeout(500);
+if (process.env.CARD) { await p.evaluate((i) => document.querySelectorAll('#roster .card')[i].click(), +process.env.CARD); await p.waitForTimeout(300); }   // CARD=2 picks the third fighter
 await p.screenshot({ path: `${out}/select.png` });
 await p.evaluate(() => document.getElementById('go').click());
 await p.waitForFunction(() => window.__duel?.world?.phase === 'fight' && window.__duel.views.length === 2, null, { timeout: 300000 });
@@ -30,6 +31,7 @@ if (bare) {
   await p.addStyleTag({ content: '#hud,#controls,#labels,#banner,#vignette{display:none!important}' });
   await p.evaluate(() => { const w = window.__duel.world, s = w.spawns; Object.assign(w.fighters[0], { x: s[0].x * 0.35, z: s[0].z * 0.35 }); Object.assign(w.fighters[1], { x: s[1].x * 0.35, z: s[1].z * 0.35, skillCd: 99 }); window.__duel.setLevel('easy'); });
   await p.waitForTimeout(4000); await p.screenshot({ path: `${out}/bare.png` });
+  console.log(JSON.stringify(await p.evaluate(() => ({ tris: window.__duel.renderInfo().triangles, calls: window.__duel.renderInfo().calls, grass: window.__duel.arena.grassCount }))));
 } else {
   await place({ state: 'stagger', t: 0, staggerDur: 30 }); await p.waitForTimeout(2500); await p.screenshot({ path: `${out}/1-fight.png` });
   await key('KeyJ'); await p.waitForTimeout(700); await key('KeyJ'); await p.waitForTimeout(900); await p.screenshot({ path: `${out}/2-two-presses.png` });

@@ -1,4 +1,4 @@
-# The Duel — handover (11 Nov 2026, build 18)
+# The Duel — handover (11 Nov 2026, build 19)
 
 Read this first in a new chat. It replaces the long conversation that built the game so far.
 
@@ -27,7 +27,16 @@ Read this first in a new chat. It replaces the long conversation that built the 
 
 ## 3. Where things stand
 
-**Build 18 was released on 11 Nov as an APK (v1.0.18) and has not been played by Sudhi yet.** It is the first step of his feedback on build 17: the fighting basics, on the existing arenas. The rest of his requests are still on the list in section 8.
+**Build 19 was released on 11 Nov as an APK (v1.0.19), about an hour after build 18. He has not reported playing either yet.** Build 19 adds the third fighter and the new map, made with his Meshy key under his instruction "don't hold back on vertices, make it look absolutely beautiful like the Naraka screenshot" and "file size is completely fine, Dawn of Dynasties was 300 MB":
+
+- **Wuixi the Crimson Fang** (The Red Lotus; title and faction are Claude's suggestion, not yet confirmed by him). Meshy image-to-3D from `tools/fighters/wuixi.png` at 150,000 triangles, rigged on the shared skeleton, shipped unshrunk with 2048 px textures (`assets/models/wuixi.glb`, 5 MB). Fast, light armour. Weapon **katana** (built in code in `fighterView.js`: curved blade, gold guard, crimson-wrapped grip, tassel; quicker and slightly weaker than the sword). Special **Crimson Flash** (dash-cut, 10 s cooldown).
+- **Whispering Meadow**, the new default arena (`src/meadow.js`): rolling ground with a winding dirt path, about 46,000 tufts of grass that sway in the wind and bend away from the fighters, wildflowers, pebbles, Meshy trees, mossy boulders, a pavilion and farmhouses, three rows of misty hills, blue sky with drifting clouds, soft daylight. Boulders and two trees are cover. Each arena now carries its own light (`look`), including sky reflections on metal.
+- **Graphics setting** on the title screen (Low / Medium / High / Ultra, `src/quality.js`): sharpness, shadows, grass amount, tree detail. Default High. The game reloads when it is changed. If a fight runs under about 35 frames a second for six seconds it suggests lowering it, once.
+- New tools: `tools/build_hd.mjs` (packs Meshy models at full detail), `tools/dev/look.mjs` (pictures of any model from four sides), `tools/dev/portraits.mjs` (select-screen portraits).
+- **Weight:** the meadow at High draws about 1.8 million triangles a frame including shadows (courtyard: about 0.27 million). Fine on a strong phone; unknown on his. This is the first thing to ask about.
+- A Meshy katana model was generated (30 credits) but came out wrong (cord wrapped round the blade), so the katana is built in code instead.
+
+**Build 18 (v1.0.18)** came just before. It is the first step of his feedback on build 17: the fighting basics, on the existing arenas. The rest of his requests are still on the list in section 8.
 
 What build 18 changed:
 
@@ -57,9 +66,9 @@ Also open with him: he asked (11 Nov) whether the game should have **metal-inspi
 - Triangle: normal attacks beat parry; charged (blue, armoured) beats normal attacks; parry beats charged and disarms.
 - Buttons: Horizontal, Vertical, Dodge, Parry, Special, Lock. Strings and rules as listed in section 3.
 - Also: stamina and "winded", whiff recovery, weapon clash, backstab ×1.5, dodge roll with invulnerability (hold Dodge = sprint), lock-on, pillars as cover.
-- Fighters supply the body (health, armour, speed, stamina); weapons supply the moves. Weapons: Sword, Divine sword, Mace, Spear (spear and mace reuse sword animations).
-- Roster (`src/roster.js`): **Aurelian the Sun-Crowned** (The Gilded Order, divine sword, Sunburst), **Varek the Oathbreaker** (The Fallen, sword, Oathbreaker's Rush), 8 Dawn of Dynasties fighters, and "Test Dummy" (the first plate knight). Aurelian and Varek are the two launch fighters.
-- Arena: ruined castle courtyard (wall ring, towers, braziers, pillars, banners, puddles, leaves). Old grass field still available with `?arena=field`.
+- Fighters supply the body (health, armour, speed, stamina); weapons supply the moves. Weapons: Sword, Divine sword, Katana, Mace, Spear (all reuse the sword animations).
+- Roster (`src/roster.js`): **Aurelian the Sun-Crowned** (The Gilded Order, divine sword, Sunburst), **Varek the Oathbreaker** (The Fallen, sword, Oathbreaker's Rush), **Wuixi the Crimson Fang** (The Red Lotus, katana, Crimson Flash), 8 Dawn of Dynasties fighters, and "Test Dummy" (the first plate knight). Aurelian and Varek are the two launch fighters.
+- Arenas, chosen on the select screen: **Whispering Meadow** (default), Castle Courtyard (wall ring, towers, braziers, pillars, banners, puddles, leaves) and the old Open Field. `?arena=meadow|courtyard|field` also works.
 - Four cameras (classic, shoulder, wide, side), cycled with the camera button.
 - Audio: 20 ElevenLabs sound effects in `assets/sfx/`, Suno music in `assets/music/` (menu, battle1, battle2, victory, defeat).
 
@@ -77,7 +86,8 @@ No build step: plain ES modules, Three.js r187 vendored in `vendor/`.
 | `src/fighterView.js` | Model, weapon mesh on `RightHand`, animation per state, team cloth recolour. |
 | `src/models.js` | Loads characters and the shared animation library; pins hips. |
 | `src/main.js` | Render loop, cameras, HUD, effects, music hooks, `BUILD`, `window.__duel` debug object. |
-| `src/courtyard.js`, `src/arena.js` | Arenas. |
+| `src/meadow.js`, `src/courtyard.js`, `src/arena.js` | Arenas. Each returns `{ group, obstacles, spawns, R, update, look }`. |
+| `src/quality.js` | Graphics levels. |
 | `src/select.js`, `src/roster.js` | Character select and fighter data. |
 | `src/audio.js`, `src/fx.js` | Sound/music and particles/trails/shake. |
 | `android/`, `.github/workflows/android.yml` | Capacitor 7 project; workflow builds an APK on `[release]` in a commit message or a `v*` tag. |
@@ -92,7 +102,8 @@ No build step: plain ES modules, Three.js r187 vendored in `vendor/`.
 - Animations: `POST /openapi/v1/animations {rig_task_id, action_ids}`, 3 credits each; catalogue at https://api.meshy.ai/web/public/animations/resources.
 - `tools/build_models.mjs` shrinks models (simplify, WebP textures, meshopt) and with `--anims` rebuilds `assets/models/anims.glb` from the sources listed in its KEEP list.
 - **Full-size sources** (rigs and animation packs `combat3_anim.glb`, `combat4_anim.glb`, props) live on the repo's **`models` branch**. Meshy download links expire, so that branch is the only copy.
-- Credit costs: text-to-3D 20 + 10, image-to-3D 30, rig 5, animation 3. **Balance: 272.**
+- Credit costs: text-to-3D 20 + 10, image-to-3D 30, rig 5, animation 3, remesh (a lighter copy of a finished model) 5. **Balance: 72** after build 19 (Wuixi 35, katana 30, tree, boulders, pavilion and hut 30 each, three lighter copies 15).
+- From build 19, new fighters are generated with `MESHY_POLY=150000` and packed with `tools/build_hd.mjs fighter` (no triangles removed). `new_prop.py` takes `PROP_STYLE` to replace the castle-stone style line. meshopt's simplifier barely reduces Meshy models (too many texture seams); for a lighter copy use Meshy's remesh (`POST /v1/remesh {input_task_id, target_polycount}`).
 
 ## 7. Testing notes
 
@@ -115,8 +126,8 @@ Done in build 18: the arrows, the two-button strings, the disarming parry, see-t
 
 13. **Hero select like Naraka's hero screen** (he sent a screenshot): small portrait tiles in a grid on the left with silhouettes for fighters still to come, the chosen fighter standing large in 3D in the middle against a moody backdrop, name and short description on the right with their special and stats. Make our own design in that layout, not a copy of their art.
 14. **Front menu:** game modes, settings and so on on the intro screen. Flow: title → choose game mode → choose fighter → fight. Modes and settings still to be agreed with him. He also wants map choice 'like Street Fighter': build 18 has a simple two-arena picker; a proper stage-select screen belongs here.
-15. **New map in the style of the Naraka Mobile screenshot he sent:** open grassland with tall grass, a worn dirt path, thatched huts and trees, soft natural daylight. He asked for an "exact copy"; build an original map with that look rather than copying theirs.
-16. **Colour:** our courtyard is orange-brown with flat purple cut-out mountains; the reference is natural greens with soft light and haze. Re-grade our colours and lighting toward that, and replace the flat mountains with believable distant hills.
+15. **New map in the style of the Naraka Mobile screenshot: done in build 19** (Whispering Meadow). Waiting for his reaction. Ideas not yet done: thatched huts closer in, a stream, fences, more tree kinds, grass that hides less of the fighters' legs if he finds it too tall.
+16. **Colour:** the meadow has natural greens, haze and layered hills (done). The courtyard still has its orange light and flat purple cut-out mountains; re-grade it or retire it once he has seen the meadow.
 17. **Closer camera:** the reference camera sits close behind the fighter, who fills about a third of the screen height. Ours is far back and the rival is tiny.
 
 **D. Less boxy, quality first (his requests, 11 Nov)**
@@ -125,13 +136,13 @@ His rule: **looks come first; he does not care how big the game is.** Phones tha
 
 18. **Scenery:** replace block-built walls, towers and pillars with sculpted Meshy models; real textures with surface bumps on stone and ground; grass tufts, bushes, ivy, rubble, uneven ground, swaying trees; layered misty hills instead of cut-out mountains.
 19. **Lighting:** distance haze, glow around fires and sun, soft contact shadows, colour grade.
-20. **Characters less boxy:** the fighters are shrunk for phones by `tools/build_models.mjs` (half the triangles thrown away, textures cut to 1024 px, about 1 to 1.7 MB each). Ship fuller versions from the full-size sources on the `models` branch: more triangles, larger textures, smooth shading and surface-detail maps, and softer cloth and hair. Regenerate any fighter that is still blocky at source at a higher Meshy detail level.
-21. **Graphics settings** (in the settings menu from item 14), plus music and sound volume sliders and a button-opacity slider: quality presets (Low / Medium / High / Ultra) covering model and texture detail, grass density, shadows, glow and haze, screen sharpness, and a frame-rate choice (30 / 60).
+20. **Characters less boxy:** Wuixi is the new standard (150,000 triangles, 2048 px textures, unshrunk). **Aurelian and Varek still ship at half detail with 1024 px textures**; re-pack them from the full-size sources on the `models` branch with `tools/build_hd.mjs fighter`, or regenerate them at 150,000 triangles (35 credits each) if the sources are too coarse. The eight Dawn of Dynasties fighters likewise.
+21. **Graphics settings:** the level switch is done in build 19 (title screen). Still to add in a proper settings menu: music and sound volume sliders, a button-opacity slider, a frame-rate choice (30 / 60).
 22. **Heat and battery guard, as in Dawn of Dynasties: done in build 18** (frame cap). Background: that game made phones hot until commit `ebecec8` ("Cooler phones", 4 Nov): a 60 fps cap that drops to 30 when the phone struggles, plus removing a costly per-frame effect; it also pauses all work when the app is left (`js/game.js`, "Frame cap"). The Duel now has the same cap and already paused when the app is left. Still at up to 2x sharpness with shadows on, which the graphics settings should control.
 
-**E. Third fighter (concept received 11 Nov)**
+**E. Wuixi follow-ups**
 
-23. **Wuixi** (name chosen by Sudhi): a helmeted woman warrior in black, crimson and gold with dragon embroidery, a dragon shoulder guard, long ponytail with red ribbons, tattered skirt, and a katana. `tools/fighters/wuixi.png` is the clean reference for Meshy (A-pose, empty hands, grey background, made in ChatGPT from the prompt given in chat); `tools/fighters/wuixi_art.png` is his original posed artwork with the katana (use it for the katana's look and for menu art). Not yet generated: waiting for a fresh `MESHY_KEY` (about 35 credits). To do: generate with `tools/new_fighter.py wuixi tools/fighters/wuixi.png <out>` at a **much higher triangle count than the old 30,000** (the script has 30000 written in; raise it) and without the heavy shrinking, since he wants no more boxy characters; agree her title, faction and special; add a katana weapon (sword moves to start). Hair, ribbons and skirt have no bones on the shared 24-bone skeleton, so they will not flow unless sway is added in code.
+23. Wuixi is in the game (build 19). Open: confirm her title and faction with him; her hair, ribbons and skirt are stiff (no bones for them on the shared skeleton; add sway in code); proper katana strings and animations of her own; his original artwork `tools/fighters/wuixi_art.png` could be her menu art.
 
 ### Backlog (waiting on Sudhi's go-ahead)
 

@@ -11,6 +11,10 @@ export const ROSTER = [
   { id: 'varek', name: 'Varek the Oathbreaker', short: 'Varek', origin: 'The Fallen', weapon: 'sword', skill: 'rush',
     blurb: 'Once a knight at Aurelian\'s side, cast out for breaking his vow. Quicker and harder to tire than the man he once followed, and less forgiving of his own mistakes.',
     stats: { maxHp: 100, maxStam: 110, power: 1.2, armor: 0.12, speed: 4.5, reach: 0 } },
+  // The third fighter. Made from tools/fighters/wuixi.png at full detail (about 150,000 triangles, nothing thrown away).
+  { id: 'wuixi', name: 'Wuixi the Crimson Fang', short: 'Wuixi', origin: 'The Red Lotus', weapon: 'katana', skill: 'flash',
+    blurb: 'A blade for hire who hides her face and answers to no banner. Faster than anyone in the ring and gone before the counter comes, but one clean hit hurts her more than most.',
+    stats: { maxHp: 88, maxStam: 115, power: 1.12, armor: 0.04, speed: 5.0, reach: 0.1 } },
   { id: 'franks_knight', name: 'Frankish Knight', origin: 'Franks', weapon: 'sword',
     blurb: 'Mail and a straight sword. No weakness, no tricks.',
     stats: { maxHp: 100, maxStam: 100, power: 1.0, armor: 0.1, speed: 4.4, reach: 0 } },

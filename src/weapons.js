@@ -94,6 +94,8 @@ export const WEAPONS = {
   // The mace keeps the big hammer swing for its charged horizontal strike.
   mace: finish(tuned({ ...SWORD, focusH: { ...SWORD.focusH, anim: ['Heavy_Hammer_Swing', 1.05, 1.53, 1.8], hold: 1.05 } }, 'Mace', 1.15, 1.2)),
   spear: finish(SPEAR),
+  // Lighter and quicker than a sword, and a little less in every cut.
+  katana: finish(tuned(SWORD, 'Katana', 0.86, 0.94)),
 };
 
 export const weaponOf = (id) => WEAPONS[id] || WEAPONS.sword;

@@ -13,6 +13,12 @@ export const SKILLS = {
     atk: { name: 'rush', focus: true, heavy: true, skill: true, dash: true, armed: true, anim: ['Thrust_Slash', 0.3, 0.73, 1.1], windup: 0.32, active: 0.22, recover: 0.45,
       dmg: 22, stam: 0, range: 2.7, arc: 0.9, lunge: 21, stagger: 0.8, knock: 8 },
   },
+  // Wuixi: gone from where she stood and through the enemy in a single drawn cut. Quick to come back.
+  flash: {
+    name: 'Crimson Flash', cooldown: 10,
+    atk: { name: 'flash', focus: true, heavy: true, skill: true, dash: true, armed: true, anim: ['Charged_Slash', 0.9, 1.17, 2.0], windup: 0.2, active: 0.2, recover: 0.4,
+      dmg: 17, stam: 0, range: 2.8, arc: 1.2, lunge: 27, stagger: 0.7, knock: 6 },
+  },
   // Everyone else: catch your breath and hit harder for a few seconds.
   wind: { name: 'Second Wind', cooldown: 16, buff: 6 },
 };

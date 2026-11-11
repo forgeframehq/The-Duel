@@ -168,7 +168,7 @@ export function thinkAI(ai, w, selfIdx) {
   // The special: used when it is ready and the moment suits it.
   if (free && f.skillCd <= 0 && los && e.state !== 'down' && e.state !== 'getup' && r() < p.skill * 0.03) {
     const kind = f.skill.atk ? f.skill.atk.name : 'wind';
-    if ((kind === 'sunburst' && dist < 3.8) || (kind === 'rush' && dist > 3 && dist < 8) || (kind === 'wind' && (f.stam < 35 || f.winded > 0))) { cmd.skill = true; return cmd; }
+    if ((kind === 'sunburst' && dist < 3.8) || ((kind === 'rush' || kind === 'flash') && dist > 3 && dist < 8) || (kind === 'wind' && (f.stam < 35 || f.winded > 0))) { cmd.skill = true; return cmd; }
   }
   const facing = Math.abs(angDiff(f.yaw, toE)) < 0.5;
   // A fighter on the ground can be struck once, with a vertical attack. Otherwise there is nothing to gain from swinging at them.
