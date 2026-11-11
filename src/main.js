@@ -144,6 +144,7 @@ function handleEvents() {
       case 'winded': {
         const f = world.fighters[e.id];
         label('EXHAUSTED', f.x, 2.3, f.z, e.id === 0 ? 'call hurt' : 'call');
+        if (e.id === 0) sfx.winded();
         if (e.id === 0) buzz(60);
         break;
       }
@@ -189,7 +190,7 @@ function handleEvents() {
         setTimeout(() => banner(title, sub, 2.4), e.timeout ? 0 : 700);
         break;
       }
-      case 'matchover': showMenu(e.winner === 0 ? 'VICTORY' : 'DEFEAT', `${world.score[0]} – ${world.score[1]}`); break;
+      case 'matchover': if (e.winner === 0) sfx.victory(); showMenu(e.winner === 0 ? 'VICTORY' : 'DEFEAT', `${world.score[0]} – ${world.score[1]}`); break;
     }
   }
   world.events.length = 0;
@@ -303,6 +304,13 @@ const select = initSelect({
 function openSelect() { goFullscreen(); $('menu').classList.add('hidden'); select.open(); }
 $('start').addEventListener('click', () => { if ($('menu-result').textContent && views.length === 2) { goFullscreen(); startMatch(); } else openSelect(); });
 $('change').addEventListener('click', openSelect);
+// Menu sounds for every button outside the fight controls.
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('button');
+  if (!b || b.closest('#controls')) return;
+  unlockAudio();
+  sfx.ui(b.id === 'go' || (b.id === 'start') ? 'start' : b.classList.contains('back') ? 'back' : b.classList.contains('card') || b.id === 'change' ? 'select' : 'tap');
+}, true);
 input.onLock = () => { lockWanted = !lockWanted; if (!lockWanted) locked = false; };
 function setPaused(v) {
   if (app !== 'playing') return;
