@@ -2,16 +2,20 @@
 // (health, armour, speed, stamina) and the weapon supplies the moves.
 //
 // Every weapon has the same shape, borrowed from Naraka: Bladepoint:
-//   h       horizontal attacks, chained by tapping (wide arc, catches side-steps)
-//   v       vertical attacks, chained by tapping (narrow, longer, hit harder)
-//   focusH  the charged horizontal strike, released after holding the button
-//   focusV  the charged vertical strike
+//   combo    normal attacks, chained by tapping Attack (three at most)
+//   launch   the uppercut: knocks the enemy into the air, where more hits can follow
+//   focusH   the charged strike, released after holding Attack from a standstill
+//   focusV   the charged finisher, released after holding Attack in the middle of a combo; it slams
+//   riposte  the automatic counter after a successful parry
 //
 // Timings are in seconds. `anim` is [clip, start, moment of impact, end] within the motion library,
 // and `hold` is the moment of the clip a fighter freezes on while charging.
 
+const LAUNCH = { name: 'launch', launch: true, anim: ['Charged_Upward_Slash', 0.55, 1.05, 1.7], windup: 0.3, active: 0.12, recover: 0.3, dmg: 10, stam: 10, range: 2.5, arc: 0.85, lunge: 3.2, stagger: 0.3, knock: 1.2 };
+const RIPOSTE = { name: 'riposte', anim: ['Counterstrike', 2.05, 2.37, 3.0], windup: 0.14, active: 0.14, recover: 0.3, dmg: 16, stam: 0, range: 3.4, arc: 1.7, lunge: 7, stagger: 0.55, knock: 5 };
+
 const SWORD = {
-  label: 'Sword',
+  label: 'Sword', launch: LAUNCH, riposte: RIPOSTE,
   h: [
     { name: 'h1', anim: ['Triple_Combo_Attack', 0.3, 0.77, 1.1], windup: 0.26, active: 0.12, recover: 0.24, dmg: 9, stam: 7, range: 2.35, arc: 1.1, lunge: 3.0, stagger: 0.32, knock: 3 },
     { name: 'h2', anim: ['Triple_Combo_Attack', 1.1, 1.53, 1.85], windup: 0.24, active: 0.12, recover: 0.24, dmg: 9, stam: 7, range: 2.35, arc: 1.1, lunge: 3.0, stagger: 0.32, knock: 3 },
@@ -26,13 +30,16 @@ const SWORD = {
 };
 
 // A copy of a weapon with every attack slowed or sped up and its damage scaled.
+// Every attack a weapon can make, for anything that needs to walk the whole list.
+export const attacksOf = (w) => [...w.combo, w.launch, w.focusH, w.focusV, w.riposte];
+
 function tuned(base, label, time, dmg, extra = {}) {
   const fix = (a) => ({ ...a, windup: a.windup * time, recover: a.recover * time, dmg: a.dmg * dmg, stam: a.stam * (time > 1 ? 1.15 : 1) });
-  return { ...base, label, h: base.h.map(fix), v: base.v.map(fix), focusH: fix(base.focusH), focusV: fix(base.focusV), ...extra };
+  return { ...base, label, combo: base.combo.map(fix), launch: fix(base.launch), focusH: fix(base.focusH), focusV: fix(base.focusV), ...extra };
 }
 
 const SPEAR = {
-  label: 'Spear',
+  label: 'Spear', launch: { ...LAUNCH, range: 2.8 }, riposte: { ...RIPOSTE, anim: ['Thrust_Slash', 0.45, 0.73, 1.1] },
   h: [
     { name: 'h1', anim: ['Thrust_Slash', 1.1, 1.4, 1.9], windup: 0.28, active: 0.12, recover: 0.28, dmg: 9, stam: 7, range: 2.5, arc: 1.0, lunge: 3.0, stagger: 0.32, knock: 3.5 },
     { name: 'h2', anim: ['Right_Hand_Sword_Slash', 0.1, 0.53, 1.1], windup: 0.28, active: 0.12, recover: 0.34, dmg: 10, stam: 8, range: 2.5, arc: 1.0, lunge: 3.0, stagger: 0.36, knock: 4 },
@@ -44,6 +51,10 @@ const SPEAR = {
   focusH: SWORD.focusH,
   focusV: { ...SWORD.focusV, range: 2.9 },
 };
+
+// The order attacks come out in when Attack is tapped repeatedly.
+SWORD.combo = SWORD.h;
+SPEAR.combo = [SPEAR.v[0], SPEAR.h[0], SPEAR.v[1]];
 
 export const WEAPONS = {
   sword: SWORD,

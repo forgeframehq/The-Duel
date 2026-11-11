@@ -6,11 +6,12 @@ import { hasLOS, angDiff, armored } from './sim.js';
 // dodge:  chance it dodges a normal swing (and a charged one it failed to parry).
 // armor:  chance it answers a normal swing by charging straight through it.
 // focus:  how often its own attack is a charged strike rather than a combo.
+// launch: how often a combo ends in an uppercut and air hits. skill: how readily it uses its special.
 // punish: chance it takes an opening. smart: whether it stops hitting a charging enemy and waits to parry.
 export const DIFFICULTY = {
-  easy: { parry: 0.12, dodge: 0.06, armor: 0.04, aggro: 0.4, focus: 0.18, comboMax: 2, rest: 1.7, punish: 0.4, smart: false, feint: 0 },
-  normal: { parry: 0.4, dodge: 0.14, armor: 0.12, aggro: 0.58, focus: 0.26, comboMax: 3, rest: 1.1, punish: 0.75, smart: true, feint: 0.1 },
-  hard: { parry: 0.68, dodge: 0.22, armor: 0.22, aggro: 0.8, focus: 0.3, comboMax: 3, rest: 0.6, punish: 1, smart: true, feint: 0.25 },
+  easy: { parry: 0.12, dodge: 0.06, armor: 0.04, aggro: 0.4, focus: 0.25, comboMax: 2, rest: 1.7, punish: 0.4, smart: false, feint: 0, launch: 0.1, skill: 0.25 },
+  normal: { parry: 0.4, dodge: 0.14, armor: 0.12, aggro: 0.58, focus: 0.34, comboMax: 3, rest: 1.1, punish: 0.75, smart: true, feint: 0.1, launch: 0.35, skill: 0.6 },
+  hard: { parry: 0.68, dodge: 0.22, armor: 0.22, aggro: 0.8, focus: 0.36, comboMax: 3, rest: 0.6, punish: 1, smart: true, feint: 0.25, launch: 0.6, skill: 1 },
 };
 
 function rng(seed) {
@@ -38,6 +39,7 @@ function planAttack(ai, forceFocus = false) {
   const r = ai.rand, p = ai.p;
   ai.plan = forceFocus || r() < p.focus ? 'focus' : 'combo';
   ai.comboLeft = ai.plan === 'focus' ? 1 : 1 + Math.floor(r() * p.comboMax);
+  ai.launched = false;
   setMode(ai, 'attack', 2.6);
 }
 
@@ -69,7 +71,7 @@ function steer(w, f, dx, dz) {
 
 export function thinkAI(ai, w, selfIdx) {
   const f = w.fighters[selfIdx], e = w.fighters[1 - selfIdx], p = ai.p, r = ai.rand;
-  const cmd = { mx: 0, mz: 0, faceYaw: null, h: false, v: false, hHold: false, vHold: false, parry: false, dodge: false, sprint: false };
+  const cmd = { mx: 0, mz: 0, faceYaw: null, atk: false, atkHold: false, up: false, parry: false, dodge: false, skill: false, sprint: false };
   const dt = 1 / 60;
   ai.clock += dt; ai.modeT += dt;
   if (ai.lastRound !== w.round) { ai.lastRound = w.round; ai.lastSeen = null; ai.react = null; ai.hold = null; setMode(ai, 'approach', 1); }
@@ -99,18 +101,19 @@ export function thinkAI(ai, w, selfIdx) {
       cmd.mx = -nz * ai.circleDir; cmd.mz = nx * ai.circleDir; cmd.dodge = true; ai.hold = null; // feint: dodge out of the charge
       return cmd;
     } else if (ai.clock < ai.hold.until || (dist > 3.2 + reachBonus && ai.clock < ai.hold.until + 0.5)) {
-      cmd[ai.hold.btn + 'Hold'] = true;
+      cmd.atkHold = true;
       if (dist > 1.9) { cmd.mx = nx; cmd.mz = nz; }
       return cmd;
     } else ai.hold = null;
   }
-  const beginHold = (btn, secs, feint = false) => { cmd[btn] = true; cmd[btn + 'Hold'] = true; ai.hold = { btn, start: ai.clock, until: ai.clock + secs, feint }; };
+  const beginHold = (secs, feint = false) => { cmd.atk = true; cmd.atkHold = true; ai.hold = { start: ai.clock, until: ai.clock + secs, feint }; };
 
   // --- Defence: decide once per incoming swing how to answer it.
   if (e.state === 'attack' && e.swingId !== ai.seenSwing && los && dist < e.atk.range + (e.stats.reach || 0) + 1.2) {
     ai.seenSwing = e.swingId;
     const impact = ai.clock + Math.max(0, e.atk.windup - e.t), roll = r();
-    if (e.atk.focus) {
+    if (e.atk.skill) ai.react = roll < p.dodge * 2.5 + 0.1 ? { type: 'dodge', at: Math.max(ai.clock + 0.03, impact - 0.14) } : null; // a special cannot be parried
+    else if (e.atk.focus) {
       if (roll < p.parry) ai.react = { type: 'parry', at: Math.max(ai.clock + 0.02, impact - 0.22) };
       else if (roll < p.parry + p.dodge * 2) ai.react = { type: 'dodge', at: Math.max(ai.clock + 0.03, impact - 0.12) };
       else ai.react = null;
@@ -127,7 +130,7 @@ export function thinkAI(ai, w, selfIdx) {
       cmd.mx = back ? -nx : -nz * side; cmd.mz = back ? -nz : nx * side; cmd.dodge = true;
       return cmd;
     }
-    if (kind === 'armor' && free) { beginHold(r() < 0.5 ? 'h' : 'v', 0.4 + r() * 0.3); return cmd; }
+    if (kind === 'armor' && free) { beginHold(0.4 + r() * 0.3); return cmd; }
   }
 
   // Out of breath: back off and recover.
@@ -137,7 +140,7 @@ export function thinkAI(ai, w, selfIdx) {
   if (p.smart && armored(e) && ai.mode === 'attack' && ai.plan === 'combo') { ai.circleDir = r() < 0.5 ? 1 : -1; setMode(ai, 'circle', 0.5 + r() * 0.5); }
 
   // An opening is the enemy off balance, recovering from a swing, out of breath or stuck in a missed parry.
-  const opening = (e.state === 'stagger' && e.staggerDur - e.t > 0.25) || (e.state === 'attack' && e.t > e.atk.windup + e.atk.active) || e.winded > 0.4 || (e.state === 'parry' && e.t > 0.08);
+  const opening = e.state === 'air' || (e.state === 'stagger' && e.staggerDur - e.t > 0.25) || (e.state === 'attack' && e.t > e.atk.windup + e.atk.active) || e.winded > 0.4 || (e.state === 'parry' && e.t > 0.08);
   const key = e.state + ':' + e.swingId + ':' + Math.round((ai.clock - e.t) * 5);
   if (opening && key !== ai.openingKey) { ai.openingKey = key; ai.takeOpening = r() < p.punish; }
   if (opening && ai.takeOpening && dist < 3.4 + reachBonus && f.stam > 20 && f.winded <= 0 && ai.mode !== 'attack' && los) {
@@ -145,6 +148,14 @@ export function thinkAI(ai, w, selfIdx) {
     planAttack(ai, e.state === 'stagger' && e.parried && r() < 0.6);
     if (!(e.state === 'stagger' && e.parried)) ai.plan = 'combo', ai.comboLeft = Math.max(ai.comboLeft, 2);
   }
+
+  // The special: used when it is ready and the moment suits it.
+  if (free && f.skillCd <= 0 && los && e.state !== 'down' && e.state !== 'getup' && r() < p.skill * 0.03) {
+    const kind = f.skill.atk ? f.skill.atk.name : 'wind';
+    if ((kind === 'sunburst' && dist < 3.8) || (kind === 'rush' && dist > 3 && dist < 8) || (kind === 'wind' && (f.stam < 35 || f.winded > 0))) { cmd.skill = true; return cmd; }
+  }
+  // Nothing to gain from swinging at a fighter who is on the ground.
+  if ((e.state === 'down' || e.state === 'getup') && ai.mode === 'attack') { ai.circleDir = r() < 0.5 ? 1 : -1; setMode(ai, 'circle', 0.4 + r() * 0.4); }
 
   const facing = Math.abs(angDiff(f.yaw, toE)) < 0.5;
   switch (ai.mode) {
@@ -173,10 +184,14 @@ export function thinkAI(ai, w, selfIdx) {
     case 'attack': {
       const reach = (ai.plan === 'focus' ? 2.6 : 2.0) + reachBonus * 0.8;
       if (dist > reach) { const [sx, sz] = steer(w, f, ux, uz); cmd.mx = sx; cmd.mz = sz; }
-      const canChain = f.state === 'attack' && !f.atk.focus && f.t > f.atk.windup + f.atk.active && !f.queued;
+      const canChain = f.state === 'attack' && !f.atk.focus && (e.state !== 'air' || true) && f.t > f.atk.windup + f.atk.active && !f.queued;
       if (dist <= reach + 0.25 && facing && ai.comboLeft > 0 && f.stam > 16) {
-        if (ai.plan === 'focus' && free) { beginHold(r() < 0.5 ? 'h' : 'v', 0.35 + r() * 0.6, r() < p.feint); ai.comboLeft = 0; }
-        else if (ai.plan === 'combo' && (free || canChain)) { cmd[r() < 0.6 ? 'h' : 'v'] = true; ai.comboLeft--; }
+        if (ai.plan === 'focus' && free) { beginHold(0.35 + r() * 0.6, r() < p.feint); ai.comboLeft = 0; }
+        else if (ai.plan === 'combo' && (free || canChain)) {
+          // Sometimes the last hit of a combo is an uppercut, followed by hits while the enemy is in the air.
+          if (ai.comboLeft === 1 && e.state !== 'air' && !ai.launched && r() < p.launch) { cmd.up = true; ai.launched = true; ai.comboLeft = 2; }
+          else { cmd.atk = true; ai.comboLeft--; }
+        }
       }
       const done = ai.comboLeft <= 0 && free && !ai.hold;
       if (done || ai.modeT > ai.modeDur || !los || f.stam < 14) {

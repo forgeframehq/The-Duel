@@ -7,6 +7,7 @@
 //   a charged strike beats normal attacks (it cannot be interrupted by them)
 //   a parry          beats a charged strike (and leaves the attacker wide open)
 import { weaponOf } from './weapons.js';
+import { skillOf } from './skills.js';
 
 export const TICK = 1 / 60;
 export const ROUND_TIME = 99;
@@ -18,14 +19,16 @@ export const MIN_CHARGE = 0.3;    // a charge must be held at least this long be
 export const FULL_CHARGE = 0.9;   // held this long, the strike does its most damage
 export const MAX_CHARGE = 1.5;    // held this long, it goes off by itself
 // A parry: the moment it starts working, the moment it stops, and when the fighter can act again.
-export const PARRY = { start: 0.04, end: 0.42, total: 0.72 };
+export const PARRY = { start: 0.03, end: 0.5, total: 0.75 };
+// A launched fighter hangs in the air this long, can be hit this many more times, then lies on the ground and gets up.
+export const AIR_TIME = 1.05, JUGGLE_MAX = 3, DOWN_TIME = 0.7, GETUP_TIME = 0.7, AIR_HEIGHT = 1.5;
 const RADIUS = 0.48;
 
-export const EMPTY_CMD = Object.freeze({ mx: 0, mz: 0, faceYaw: null, h: false, v: false, hHold: false, vHold: false, parry: false, dodge: false, sprint: false });
+export const EMPTY_CMD = Object.freeze({ mx: 0, mz: 0, faceYaw: null, atk: false, atkHold: false, up: false, parry: false, dodge: false, skill: false, sprint: false });
 
 // Upgrade hook for the progression phase: everything a character build can change lives here.
 export function defaultStats() {
-  return { maxHp: 100, maxStam: 100, power: 1, armor: 0, speed: 4.4, reach: 0, weapon: 'sword' };
+  return { maxHp: 100, maxStam: 100, power: 1, armor: 0, speed: 4.4, reach: 0, weapon: 'sword', skill: 'wind' };
 }
 
 export function wrapAngle(a) {
@@ -41,11 +44,11 @@ function turnToward(cur, target, maxStep) {
 
 const FRESH = () => ({
   state: 'idle', t: 0, atk: null, btn: null, combo: 0, comboT: 0, hitDone: false, swung: false, queued: null,
-  charge: null, chargeMul: 1, staggerDur: 0, parried: false, bounced: false, connected: false, winded: 0, regenDelay: 0,
+  charge: null, chargeMul: 1, juggle: 0, airDur: AIR_TIME, buffT: 0, skillCd: 0, staggerDur: 0, parried: false, bounced: false, connected: false, winded: 0, regenDelay: 0,
 });
 
 function makeFighter(id, stats) {
-  return { id, stats, weapon: weaponOf(stats.weapon), x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: stats.maxHp, stam: stats.maxStam, swingId: 0, ddx: 0, ddz: 0, ...FRESH() };
+  return { id, stats, weapon: weaponOf(stats.weapon), skill: skillOf(stats.skill), x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: stats.maxHp, stam: stats.maxStam, swingId: 0, ddx: 0, ddz: 0, ...FRESH() };
 }
 
 export function createWorld(arena, statsA = defaultStats(), statsB = defaultStats()) {
@@ -133,13 +136,33 @@ function beginSwing(f, atk, w) {
   w.events.push({ type: 'windup', id: f.id, heavy: !!atk.focus });
 }
 
-// A normal attack with the horizontal ('h') or vertical ('v') button. Which one comes out depends on the place in the combo.
-function startAttack(f, btn, w) {
+// A normal attack. Which one comes out depends on the place in the combo.
+function startAttack(f, w) {
   if (f.winded > 0 || f.stam <= 0) return false;
-  const list = f.weapon[btn], atk = list[Math.min(f.combo, list.length - 1)];
+  const list = f.weapon.combo, atk = list[Math.min(f.combo, list.length - 1)];
   spend(f, atk.stam, 0.7, w);
-  f.btn = btn; f.chargeMul = 1;
+  f.chargeMul = 1;
   beginSwing(f, atk, w);
+  return true;
+}
+
+// The uppercut. If it lands, the enemy is knocked into the air.
+function startLaunch(f, w) {
+  if (f.winded > 0 || f.stam <= 0) return false;
+  spend(f, f.weapon.launch.stam, 0.7, w);
+  f.chargeMul = 1;
+  beginSwing(f, f.weapon.launch, w);
+  return true;
+}
+
+// The fighter's special. Ready again after its cooldown.
+function startSkill(f, w) {
+  if (f.skillCd > 0) return false;
+  const sk = f.skill;
+  f.skillCd = sk.cooldown;
+  w.events.push({ type: 'skill', id: f.id, name: sk.name, kind: sk.atk ? sk.atk.name : 'wind' });
+  if (sk.atk) { f.chargeMul = 1; f.combo = 0; beginSwing(f, sk.atk, w); }
+  else { f.stam = f.stats.maxStam; f.winded = 0; f.regenDelay = 0; f.buffT = sk.buff; }
   return true;
 }
 
@@ -180,6 +203,8 @@ function updateFighter(f, cmd, other, w) {
 
   if (f.state !== 'dead') {
     if (f.winded > 0) f.winded -= dt;
+    if (f.buffT > 0) f.buffT -= dt;
+    if (f.skillCd > 0) f.skillCd -= dt;
     if (f.regenDelay > 0) f.regenDelay -= dt;
     else if (f.state === 'idle' || f.state === 'stagger') f.stam = Math.min(f.stats.maxStam, f.stam + 26 * dt);
   }
@@ -191,8 +216,9 @@ function updateFighter(f, cmd, other, w) {
       if (f.comboT > 0) { f.comboT -= dt; if (f.comboT <= 0) f.combo = 0; }
       if (cmd.dodge && startDodge(f, cmd, w)) break;
       if (cmd.parry && startParry(f, w)) break;
-      if (cmd.v && startAttack(f, 'v', w)) break;
-      if (cmd.h && startAttack(f, 'h', w)) break;
+      if (cmd.skill && startSkill(f, w)) break;
+      if (cmd.up && startLaunch(f, w)) break;
+      if (cmd.atk && startAttack(f, w)) break;
       let sp = f.stats.speed;
       const mag = Math.min(1, Math.hypot(cmd.mx, cmd.mz));
       if (cmd.sprint && mag > 0.5 && f.winded <= 0 && f.stam > 0) { sp *= 1.5; spend(f, 13 * dt, 0.35, w); }
@@ -209,17 +235,18 @@ function updateFighter(f, cmd, other, w) {
     case 'attack': {
       // A swing that touches nothing (missed or dodged) takes longer to recover from: an opening for the other side.
       const a = f.atk, recover = a.recover * (f.connected || f.t < a.windup + a.active ? 1 : 1.4), total = a.windup + a.active + recover;
-      if (cmd.h) f.queued = 'h';
-      if (cmd.v) f.queued = 'v';
+      if (cmd.atk) f.queued = 'atk';
+      if (cmd.up) f.queued = 'up';
       // Still holding the button early in a normal swing: wind it back into a charge.
-      if (!a.focus && f.t >= CHARGE_AFTER && f.t < a.windup && (f.btn === 'h' ? cmd.hHold : cmd.vHold)) {
-        f.state = 'charge'; f.t = 0; f.charge = f.btn; f.queued = null;
+      // From a standstill it becomes the charged strike; in the middle of a combo, the slamming finisher.
+      if (!a.focus && !a.launch && a !== f.weapon.riposte && f.t >= CHARGE_AFTER && f.t < a.windup && cmd.atkHold) {
+        f.state = 'charge'; f.t = 0; f.charge = f.combo >= 1 ? 'v' : 'h'; f.queued = null;
         w.events.push({ type: 'charge', id: f.id });
         break;
       }
       if (f.t < a.windup) face(f, cmd, a.focus ? 9 : 7, dt);
       const gap = Math.hypot(other.x - f.x, other.z - f.z);
-      if (f.t > a.windup * 0.55 && f.t < a.windup + a.active && gap > 1.35) { tvx = fx * a.lunge; tvz = fz * a.lunge; }
+      if (f.t > a.windup * (a.dash ? 0.3 : 0.55) && f.t < a.windup + a.active && gap > 1.35) { tvx = fx * a.lunge; tvz = fz * a.lunge; }
       accel = 18;
       if (!f.swung && f.t >= a.windup) { f.swung = true; w.events.push({ type: 'swing', id: f.id, heavy: !!a.focus }); }
       if (cmd.dodge && f.t >= a.windup + a.active + recover * 0.45 && startDodge(f, cmd, w)) break;
@@ -227,9 +254,11 @@ function updateFighter(f, cmd, other, w) {
         const q = f.queued;
         f.state = 'idle'; f.t = 0; f.queued = null; f.comboT = 0.5;
         // A combo is three normal attacks at most; a charged strike always ends one.
-        f.combo = a.focus ? 0 : f.combo + 1;
-        if (f.combo >= 3) f.combo = 0;
-        else if (q && !a.focus) startAttack(f, q, w);
+        f.combo = a.focus || a.launch || a === f.weapon.riposte ? 0 : f.combo + 1;
+        if (a.focus) break;
+        if (q === 'up') { f.combo = 0; startLaunch(f, w); } // the uppercut can follow any normal hit
+        else if (f.combo >= 3) f.combo = 0;
+        else if (q) startAttack(f, w);
       }
       break;
     }
@@ -240,7 +269,7 @@ function updateFighter(f, cmd, other, w) {
       const sp = f.stats.speed * 0.3;
       tvx = cmd.mx * sp; tvz = cmd.mz * sp;
       face(f, cmd, 6, dt);
-      const held = f.charge === 'h' ? cmd.hHold : cmd.vHold;
+      const held = cmd.atkHold;
       if ((!held && f.t >= MIN_CHARGE) || f.t >= MAX_CHARGE) {
         const atk = f.charge === 'h' ? f.weapon.focusH : f.weapon.focusV;
         f.chargeMul = 1 + 0.3 * Math.max(0, Math.min(1, (f.t - MIN_CHARGE) / (FULL_CHARGE - MIN_CHARGE)));
@@ -263,6 +292,14 @@ function updateFighter(f, cmd, other, w) {
       if (f.t >= DODGE_TIME) { f.state = 'idle'; f.t = 0; }
       break;
     }
+    case 'air': {
+      // Knocked off the ground and helpless until landing.
+      accel = 3;
+      if (f.t >= f.airDur) { f.state = 'down'; f.t = 0; f.vx = f.vz = 0; w.events.push({ type: 'land', id: f.id, x: f.x, z: f.z }); }
+      break;
+    }
+    case 'down': accel = 12; if (f.t >= DOWN_TIME) { f.state = 'getup'; f.t = 0; } break;
+    case 'getup': accel = 12; if (f.t >= GETUP_TIME) { f.state = 'idle'; f.t = 0; f.combo = 0; } break;
     case 'stagger': {
       accel = 6;
       if (f.t >= f.staggerDur) { f.state = 'idle'; f.t = 0; f.parried = false; f.bounced = false; f.combo = 0; }
@@ -283,7 +320,8 @@ function stagger(f, dur, kx, kz, parried = false, bounced = false) {
 }
 
 function findHit(a, b, w) {
-  if (a.state !== 'attack' || a.hitDone || b.state === 'dead') return null;
+  // A fighter lying on the ground or getting up cannot be hit, which stops a combo going on for ever.
+  if (a.state !== 'attack' || a.hitDone || b.state === 'dead' || b.state === 'down' || b.state === 'getup') return null;
   const atk = a.atk;
   if (a.t < atk.windup || a.t > atk.windup + atk.active) return null;
   const dx = b.x - a.x, dz = b.z - a.z;
@@ -314,17 +352,18 @@ function applyHit(a, b, atk, w) {
   // How far the attacker is from the direction the defender is facing: 0 = head on, PI = from behind.
   const off = Math.abs(angDiff(b.yaw, toB + Math.PI));
   const backstab = off > 2.2;
-  const raw = atk.dmg * a.stats.power * (atk.focus ? a.chargeMul : 1);
+  const raw = atk.dmg * a.stats.power * (atk.focus ? a.chargeMul : 1) * (a.buffT > 0 ? 1.2 : 1);
 
-  if (atk.focus) {
-    // A parry beats a charged strike: the attacker is thrown wide open and the defender is free to act at once.
-    if (parrying(b) && off <= 1.5) {
-      stagger(a, 1.3, -nx * 3, -nz * 3, true);
-      b.state = 'idle'; b.t = 0;
-      b.stam = Math.min(b.stats.maxStam, b.stam + 20); b.regenDelay = 0;
-      w.events.push({ type: 'parry', id: b.id, target: a.id, x: px, z: pz });
-      return;
-    }
+  if (atk.focus && !atk.skill && parrying(b) && off <= 1.6) {
+    // A parry beats a charged strike (not a special): the attacker is thrown wide open and the defender counters at once.
+    stagger(a, 1.4, -nx * 2, -nz * 2, true);
+    b.stam = Math.min(b.stats.maxStam, b.stam + 25); b.regenDelay = 0; b.combo = 0; b.chargeMul = 1;
+    b.yaw = Math.atan2(-dx, -dz);
+    beginSwing(b, b.weapon.riposte, w);
+    w.events.push({ type: 'parry', id: b.id, target: a.id, x: px, z: pz });
+    return;
+  } else if (atk.focus) {
+    // charged strikes and specials go straight through
   } else if (armored(b) && !backstab) {
     // A charged strike beats normal attacks: the blow lands for half and does not stop them.
     const dmg = raw * 0.5 * (1 - b.stats.armor);
@@ -335,14 +374,25 @@ function applyHit(a, b, atk, w) {
 
   // Normal attacks beat a parry: a fighter caught in the stance takes extra.
   const riposte = b.state === 'stagger' && b.parried;
+  if (riposte) b.parried = false; // only the first hit after a parry is a riposte
   const punish = !atk.focus && b.state === 'parry';
   const bonus = backstab || riposte ? 1.5 : punish ? 1.25 : 1;
   const dmg = raw * bonus * (1 - b.stats.armor);
   const info = { type: 'hit', id: a.id, target: b.id, dmg, heavy: !!atk.focus, backstab, riposte, punish, x: px, z: pz };
   b.hp -= dmg;
   if (b.hp <= 0) {
-    b.hp = 0; b.state = 'dead'; b.t = 0; b.charge = null; b.launched = !!atk.focus; b.vx = nx * atk.knock; b.vz = nz * atk.knock;
+    b.launched = !!atk.focus || b.state === 'air';
+    b.hp = 0; b.state = 'dead'; b.t = 0; b.charge = null; b.vx = nx * atk.knock; b.vz = nz * atk.knock;
     w.events.push({ ...info, kill: true });
+  } else if (b.state === 'air') {
+    // Juggling: each hit keeps them up a little longer; a charged strike or the last allowed hit slams them down.
+    b.juggle++;
+    if (atk.focus || b.juggle >= JUGGLE_MAX) { b.state = 'down'; b.t = 0; b.vx = nx * 2; b.vz = nz * 2; w.events.push({ ...info, kill: false, slam: true }); }
+    else { b.t = Math.min(b.t, 0.3); b.vx = nx * 0.4; b.vz = nz * 0.4; w.events.push({ ...info, kill: false, air: true }); }
+  } else if (atk.launch) {
+    b.state = 'air'; b.t = 0; b.juggle = 0; b.airDur = AIR_TIME; b.charge = null; b.queued = null; b.vx = nx * 0.5; b.vz = nz * 0.5;
+    a.combo = 0;   // a fresh combo for the hits that follow in the air
+    w.events.push({ ...info, kill: false, launch: true });
   } else {
     stagger(b, atk.stagger, nx * atk.knock, nz * atk.knock);
     w.events.push({ ...info, kill: false });

@@ -3,7 +3,8 @@
 // and at what point in it, so a swing on screen lands exactly when the rules say it does.
 import * as THREE from 'three';
 import { loadCharacter, loadClips } from './models.js';
-import { weaponOf } from './weapons.js';
+import { weaponOf, attacksOf } from './weapons.js';
+import { skillOf } from './skills.js';
 
 export const TEAM = { blue: 0x2f63c4, red: 0xb3180f, neutral: 0x8a1c14 };
 
@@ -152,7 +153,7 @@ export class FighterView {
 
     this.mixer = new THREE.AnimationMixer(model);
     this.weapon = weaponOf(def.weapon);
-    const w = this.weapon, clipsUsed = [...w.h, ...w.v, w.focusH, w.focusV].map((a) => a.anim[0]);
+    const skill = skillOf(def.skill), clipsUsed = [...attacksOf(this.weapon), ...(skill.atk ? [skill.atk] : [])].map((a) => a.anim[0]);
     this.actions = {}; this.weights = {};
     const add = (name, clip) => {
       const a = this.mixer.clipAction(clip);
@@ -160,7 +161,7 @@ export class FighterView {
       this.actions[name] = a; this.weights[name] = 0;
     };
     const sub = (clip, tag, keep) => new THREE.AnimationClip(clip.name + tag, clip.duration, clip.tracks.filter((t) => keep(t.name.slice(0, t.name.lastIndexOf('.')))));
-    const need = new Set(['Combat_Stance', 'Run_02', 'Hit_Reaction_1', 'Hit_Reaction', 'Shot_and_Fall_Backward', 'Sword_Parry', 'Walk_Fight_Forward', 'Roll_Dodge', 'Hit_Reaction_to_Waist', 'Knock_Down', ...clipsUsed]);
+    const need = new Set(['Combat_Stance', 'Run_02', 'Hit_Reaction_1', 'Hit_Reaction', 'Shot_and_Fall_Backward', 'Sword_Parry', 'Walk_Fight_Forward', 'Roll_Dodge', 'Hit_Reaction_to_Waist', 'Knock_Down', 'BeHit_FlyUp', 'Stand_Up1', 'victory', ...clipsUsed]);
     for (const name of need) add(name, clips.get(name));
     this.started = false; this.fallDur = clips.get('Shot_and_Fall_Backward').duration;
   }
@@ -182,7 +183,19 @@ export class FighterView {
       A.Walk_Fight_Forward.timeScale = Math.max(0.6, Math.min(1.8, speed / 1.7)) * (fwd < -0.4 * speed ? -1 : 1);
     };
 
-    switch (f.state) {
+    // The winner of a round celebrates while the loser lies still.
+    if (this.cheer && f.state !== 'dead') { want.victory = 1; A.victory.timeScale = 1; fade = 6; }
+    else switch (f.state) {
+      case 'air':
+        // Knocked into the air: the clip rises, hangs and comes down across the time spent airborne.
+        want.BeHit_FlyUp = 1; A.BeHit_FlyUp.timeScale = 0; A.BeHit_FlyUp.time = 0.02 + Math.min(1, f.t / f.airDur) * 0.6; fade = 40;
+        break;
+      case 'down':
+        want.Stand_Up1 = 1; A.Stand_Up1.timeScale = 0; A.Stand_Up1.time = 1 + f.t; fade = 12;
+        break;
+      case 'getup':
+        want.Stand_Up1 = 1; A.Stand_Up1.timeScale = 0; A.Stand_Up1.time = 4.35 + Math.min(1, f.t / 0.7) * 1.6; fade = 30;
+        break;
       case 'attack': {
         const a = f.atk, [clip, start, hit, end] = a.anim;
         const t = f.t < a.windup ? start + (hit - start) * (f.t / a.windup) : hit + (end - hit) * Math.min(1, (f.t - a.windup) / (a.active + a.recover));

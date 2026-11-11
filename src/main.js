@@ -14,7 +14,7 @@ import { sfx, music, unlockAudio, buzz } from './audio.js';
 
 const $ = (id) => document.getElementById(id);
 // Shown on the title screen, so it is easy to tell which version is on a phone. Raise it with every update.
-const BUILD = 16;
+const BUILD = 17;
 const canvas = $('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
@@ -63,7 +63,7 @@ const particles = new Particles(scene);
 const shake = new Shake();
 const input = new Input();
 
-let world = createWorld(arena, { ...fighters[0].stats, weapon: fighters[0].weapon }, { ...fighters[1].stats, weapon: fighters[1].weapon });
+let world = createWorld(arena, { ...fighters[0].stats, weapon: fighters[0].weapon, skill: fighters[0].skill }, { ...fighters[1].stats, weapon: fighters[1].weapon, skill: fighters[1].skill });
 let ai = createAI('normal');
 let level = 'normal';
 let app = 'menu';            // 'menu' | 'playing'
@@ -89,7 +89,7 @@ const hud = {
 };
 hud.pips.forEach((p) => { p.innerHTML = '<span></span>'.repeat(ROUNDS_TO_WIN); });
 
-const hBtn = $('btn-h'), vBtn = $('btn-v');
+const atkBtn = $('btn-atk'), skillBtn = $('btn-skill'), skillCd = $('skill-cd');
 function updateHud() {
   world.fighters.forEach((f, i) => {
     const hp = Math.max(0, f.hp / f.stats.maxHp) * 100, st = Math.max(0, f.stam / f.stats.maxStam) * 100;
@@ -97,7 +97,12 @@ function updateHud() {
     hud.st[i].style.width = st + '%';
     hud.st[i].classList.toggle('low', st < 22);
     hud.st[i].parentElement.classList.toggle('winded', f.winded > 0);
-    if (i === 0) { hBtn.classList.toggle('charging', f.state === 'charge' && f.charge === 'h'); vBtn.classList.toggle('charging', f.state === 'charge' && f.charge === 'v'); }
+    if (i === 0) {
+      atkBtn.classList.toggle('charging', f.state === 'charge');
+      // The special button fills back up as its cooldown runs down.
+      const left = Math.max(0, f.skillCd) / f.skill.cooldown;
+      skillCd.style.height = left * 100 + '%'; skillBtn.classList.toggle('ready', left <= 0);
+    }
     [...hud.pips[i].children].forEach((el, k) => {
       // The rival's pips fill from the outside in, mirroring the player's.
       const idx = i === 0 ? k : ROUNDS_TO_WIN - 1 - k;
@@ -134,9 +139,26 @@ function label(text, x, y, z, cls = '') {
 function pulse(id, ms) { const el = $(id); el.classList.add('on'); setTimeout(() => el.classList.remove('on'), ms); }
 
 // One of these shows under the round banner, so the rules of the exchange sink in over a few rounds.
-const TIPS = ['Tap Slash or Chop to combo', 'Hold an attack to charge it', 'A charged strike cannot be stopped by normal hits', 'Parry a glowing strike to throw them open',
-  'Normal attacks beat a parry', 'Dodge out of a charge to feint', 'Empty stamina leaves you exhausted', 'Strike from behind for extra damage'];
+const TIPS = ['Tap Attack to combo, up to three hits', 'Hold Attack to charge a blue strike', 'A blue strike cannot be stopped by normal hits', 'Parry stops a blue strike and counters for you',
+  'Parry does nothing against normal hits: dodge those', 'Launch them, then keep hitting in the air', 'Hold Attack mid-combo for a slamming finisher', 'Your Special cannot be parried, only dodged'];
 let tipIndex = 0;
+
+// Expanding rings on the ground, for specials, slams and the parry flash.
+const rings = [];
+function ring(x, z, color, max, dur) {
+  const m = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, 0.09, z); m.scale.setScalar(0.2);
+  scene.add(m); rings.push({ m, t: 0, dur, max });
+}
+function updateRings(dt) {
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const r = rings[i]; r.t += dt;
+    const k = Math.min(1, r.t / r.dur);
+    r.m.scale.setScalar(0.2 + (r.max - 0.2) * (1 - (1 - k) * (1 - k))); r.m.material.opacity = 0.9 * (1 - k);
+    if (k >= 1) { scene.remove(r.m); r.m.geometry.dispose(); r.m.material.dispose(); rings.splice(i, 1); }
+  }
+}
+let parryHints = 3;
 
 // ---------- Turning rule events into things you see, hear and feel ----------
 function handleEvents() {
@@ -145,6 +167,7 @@ function handleEvents() {
       case 'round':
         views.forEach((v, i) => v.snap(world.fighters[i]));
         trails.forEach((t) => { t.count = 0; });
+        views.forEach((v) => { v.cheer = false; });
         cam.yaw = world.fighters[0].yaw; cam.pitch = CAMERAS[camIndex].pitch; locked = false; lostT = 0;
         if (app === 'playing') { banner('ROUND ' + world.round, TIPS[(tipIndex++) % TIPS.length], 2.1); sfx.horn(); }
         break;
@@ -157,6 +180,26 @@ function handleEvents() {
         break;
       }
       case 'evade': label('EVADE', e.x, 2.1, e.z, 'call'); break;
+      case 'land': particles.emit(e.x, 0.15, e.z, 14, 0x9a8a6a, 3, 0.5, 2, 0.5); sfx.dodge(); break;
+      case 'parrystance': {
+        // A flash of gold so it is clear the parry is up, even when nothing comes to meet it.
+        const f = world.fighters[e.id];
+        ring(f.x, f.z, 0xffe9a8, 1.6, 0.3);
+        particles.emit(f.x + Math.sin(f.yaw) * 0.5, 1.3, f.z + Math.cos(f.yaw) * 0.5, 8, 0xfff0c0, 2.5, 0.25);
+        sfx.ui('select');
+        break;
+      }
+      case 'skill': {
+        const f = world.fighters[e.id];
+        banner(e.name.toUpperCase(), fighters[e.id].name, 1.1);
+        music.duck(0.4, 1.2); shake.add(0.35); buzz(40);
+        if (e.kind === 'sunburst') {
+          sfx.charge(); pulse('flash', 90);
+          setTimeout(() => { ring(f.x, f.z, 0xffd45a, 5.2, 0.5); ring(f.x, f.z, 0xfff6d0, 3.4, 0.4); particles.emit(f.x, 1.2, f.z, 70, 0xffd76a, 11, 0.7, 2); sfx.parry(); shake.add(0.7); }, 430);
+        } else if (e.kind === 'rush') { sfx.swing(true); particles.emit(f.x, 0.4, f.z, 24, 0xc02018, 5, 0.5, 2, 0.6); }
+        else { sfx.horn(); ring(f.x, f.z, 0x9fd4ff, 2.4, 0.5); particles.emit(f.x, 1, f.z, 30, 0x9fd4ff, 4, 0.7, -2); }
+        break;
+      }
       case 'armor':
         // A normal hit soaked up by a charging fighter: blue sparks, no flinch.
         hitStop = Math.max(hitStop, 0.04); shake.add(0.2);
@@ -171,7 +214,11 @@ function handleEvents() {
         label('CLASH', e.x, 2.2, e.z, 'call');
         buzz(30);
         break;
-      case 'charge': sfx.charge(); break;
+      case 'charge':
+        sfx.charge();
+        // A warning over a charging rival: this is the moment to get ready to parry.
+        if (e.id === 1) { const f = world.fighters[1]; label('!', f.x, 2.7, f.z, 'big'); }
+        break;
       case 'winded': {
         const f = world.fighters[e.id];
         label('EXHAUSTED', f.x, 2.3, f.z, e.id === 0 ? 'call hurt' : 'call');
@@ -187,6 +234,10 @@ function handleEvents() {
         particles.emit(e.x, 1.25, e.z, e.heavy ? 16 : 8, 0xd02818, 3.5, 0.6);
         sfx.hit(e.heavy);
         label(String(Math.round(e.dmg)), e.x, 2.0, e.z, mine ? (e.heavy || e.backstab ? 'big' : '') : 'hurt');
+        if (e.launch) { label('LAUNCH', e.x, 2.6, e.z, 'call'); particles.emit(e.x, 0.3, e.z, 16, 0xcdb48a, 4, 0.5, 3, 1.4); }
+        else if (e.slam) { label('SLAM', e.x, 2.2, e.z, 'call'); shake.add(0.6); ring(e.x, e.z, 0xffd9a0, 3, 0.35); }
+        else if (e.air) label('AIR ' + world.fighters[e.target].juggle, e.x, 2.9, e.z, 'call');
+        if (e.punish && e.target === 0 && parryHints-- > 0) toast('Parry only stops a blue charged strike');
         if (e.backstab) label('BACKSTAB', e.x, 2.5, e.z, 'call');
         else if (e.riposte) label('RIPOSTE', e.x, 2.5, e.z, 'call');
         else if (e.punish) label('PUNISH', e.x, 2.5, e.z, 'call');
@@ -216,6 +267,7 @@ function handleEvents() {
         if (e.target === 0) { pulse('vignette', 120); buzz(110); }
         break;
       case 'roundend': {
+        if (e.winner >= 0 && views[e.winner]) setTimeout(() => { if (world.phase === 'ko' || world.phase === 'over') views[e.winner].cheer = true; }, 1400);
         const title = e.timeout ? 'TIME UP' : e.winner < 0 ? 'DRAW' : 'K.O.';
         const sub = e.winner === 0 ? 'Round to you' : e.winner === 1 ? 'Round to your rival' : 'No one takes it';
         setTimeout(() => banner(title, sub, 2.4), e.timeout ? 0 : 700);
@@ -345,12 +397,13 @@ function goFullscreen() {
 }
 
 function startMatch() {
-  world = createWorld(arena, { ...fighters[0].stats, weapon: fighters[0].weapon }, { ...fighters[1].stats, weapon: fighters[1].weapon });
+  world = createWorld(arena, { ...fighters[0].stats, weapon: fighters[0].weapon, skill: fighters[0].skill }, { ...fighters[1].stats, weapon: fighters[1].weapon, skill: fighters[1].skill });
   ai = createAI(level, (Date.now() & 0xffff) + 1);
   acc = 0; hitStop = 0; slowT = 0; paused = false; lockWanted = true; lastSecond = -1;
   app = 'playing'; input.enabled = true; input.reset();
   music.play('battle');
   $('menu').classList.add('hidden'); $('hud').classList.remove('hidden'); $('controls').classList.remove('hidden');
+  $('skill-name').textContent = world.fighters[0].skill.name.toUpperCase();
   $('you-name').textContent = fighters[0].name.toUpperCase();
   $('foe-name').textContent = fighters[1].name.toUpperCase();
   handleEvents(); updateHud();
@@ -442,6 +495,7 @@ function frame(now) {
     if (simDt > 0) trails[i].update(views[i], swinging, swinging && f.atk.heavy);
   });
   particles.update(dt * scale);
+  updateRings(dt * scale);
   arena.update?.(dt * scale, now / 1000);
   shake.update(dt);
   updateCamera(dt);

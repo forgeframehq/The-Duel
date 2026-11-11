@@ -36,7 +36,9 @@ const KEEP = ['Combat_Stance', 'Idle_02', 'Run_02', 'Casual_Walk', 'ForwardLeft_
   'Triple_Combo_Attack', 'Thrust_Slash', 'Charged_Ground_Slam', 'Heavy_Hammer_Swing', 'Block2', 'Sword_Parry', 'Hit_Reaction_1', 'Hit_Reaction',
   'Dead', 'Shot_and_Fall_Backward', 'Shot_and_Fall_Forward',
   // bought for The Duel (combat3_anim.glb)
-  'Walk_Fight_Forward', 'Charged_Slash', 'Roll_Dodge', 'Hit_Reaction_to_Waist', 'Knock_Down'];
+  'Walk_Fight_Forward', 'Charged_Slash', 'Roll_Dodge', 'Hit_Reaction_to_Waist', 'Knock_Down',
+  // launcher, air combos, counter and specials (combat4_anim.glb)
+  'Charged_Upward_Slash', 'BeHit_FlyUp', 'Stand_Up1', 'Basic_Jump', 'Counterstrike', 'Charged_Spell_Cast', 'Standard_Forward_Charge', 'victory'];
 const lib = await io.read(`${src}/villager_m_anim.glb`);
 const seen = new Set();
 const strip = (doc) => {
@@ -46,7 +48,7 @@ const strip = (doc) => {
   for (const list of [r.listSkins(), r.listMeshes(), r.listMaterials(), r.listTextures()]) for (const x of list) x.dispose();
 };
 strip(lib);
-for (const f of ['villager_m_anim2', 'combat2_anim', 'combat_anim', 'combat3_anim']) {
+for (const f of ['villager_m_anim2', 'combat2_anim', 'combat_anim', 'combat3_anim', 'combat4_anim']) {
   const d = await io.read(`${src}/${f}.glb`); strip(d);
   mergeDocuments(lib, d);
 }
