@@ -44,11 +44,11 @@ func setup(fighter_def: Dictionary) -> FighterView:
 	for b in Clips.BONES: bone_ids.append(skeleton.find_bone(b))
 
 	blade_mat = StandardMaterial3D.new()
-	blade_mat.albedo_color = Color(0.82, 0.85, 0.88); blade_mat.metallic = 0.9; blade_mat.roughness = 0.25
+	blade_mat.albedo_color = Color(0.86, 0.88, 0.9); blade_mat.metallic = 0.95; blade_mat.roughness = 0.2
 	blade_mat.emission_enabled = true
 	if def.weapon == "katana": base_emission = Color(0.35, 0.03, 0.05)
 	elif def.weapon == "divine":
-		blade_mat.albedo_color = Color(0.95, 0.82, 0.4); base_emission = Color(0.5, 0.36, 0.08)
+		blade_mat.albedo_color = Color(0.98, 0.9, 0.62); base_emission = Color(0.35, 0.24, 0.05)
 	blade_mat.emission = base_emission
 	# The hand bone lives in centimetre space; the holder undoes that so the weapon can be built in metres.
 	var hand := BoneAttachment3D.new(); hand.bone_name = "RightHand"; skeleton.add_child(hand)
@@ -76,44 +76,82 @@ func _part(mesh: Mesh, mat: Material, pos: Vector3) -> MeshInstance3D:
 func _std(color: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new(); m.albedo_color = color; m.metallic = metal; m.roughness = rough; return m
 
-## Weapons are built here from simple shapes, pointing along +Y from the grip, in metres.
+## A real blade shape: a flat diamond in cross-section with sharp edges, tapering to a point. Base at y = 0.
+func _blade(length: float, width: float, thick: float, taper_from := 0.8, base_width := -1.0) -> ArrayMesh:
+	var bw := width if base_width < 0 else base_width
+	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var ring := func(y: float, w: float, t: float) -> Array:
+		return [Vector3(0, y, w / 2), Vector3(t / 2, y, 0), Vector3(0, y, -w / 2), Vector3(-t / 2, y, 0)]
+	var a: Array = ring.call(0.0, bw, thick)
+	var b: Array = ring.call(length * taper_from, width, thick)
+	var tip := Vector3(0, length, 0)
+	for i in 4:
+		var j := (i + 1) % 4
+		for v in [a[i], b[i], b[j], a[i], b[j], a[j], b[i], tip, b[j]]: st.add_vertex(v)
+	for v in [a[0], a[1], a[2], a[0], a[2], a[3]]: st.add_vertex(v)
+	st.generate_normals()
+	return st.commit()
+
+## Weapons are built here, pointing along +Y from the grip, in metres.
 func _build_weapon(kind: String) -> Node3D:
 	var g := Node3D.new()
-	var gold := _std(Color(0.85, 0.7, 0.35), 0.7, 0.3)
-	var cyl := func(r: float, h: float) -> CylinderMesh:
-		var c := CylinderMesh.new(); c.top_radius = r; c.bottom_radius = r; c.height = h; c.radial_segments = 10; return c
+	var gold := _std(Color(0.83, 0.62, 0.22), 0.9, 0.28)
+	var steel := _std(Color(0.55, 0.57, 0.6), 0.9, 0.35)
+	var leather := _std(Color(0.16, 0.1, 0.07), 0.0, 0.85)
+	var cyl := func(r_top: float, r_bottom: float, h: float) -> CylinderMesh:
+		var c := CylinderMesh.new(); c.top_radius = r_top; c.bottom_radius = r_bottom; c.height = h; c.radial_segments = 14; return c
+	var ball := func(r: float) -> SphereMesh:
+		var m := SphereMesh.new(); m.radius = r; m.height = r * 2; m.radial_segments = 14; m.rings = 8; return m
 	var box := func(x: float, y: float, z: float) -> BoxMesh:
-		var b := BoxMesh.new(); b.size = Vector3(x, y, z); return b
+		var m := BoxMesh.new(); m.size = Vector3(x, y, z); return m
+	# the grip, wound with bands, shared by every sword
+	var grip := func(length: float, mat: Material) -> void:
+		g.add_child(_part(cyl.call(0.017, 0.019, length), mat, Vector3.ZERO))
+		for i in 5: g.add_child(_part(cyl.call(0.0205, 0.0205, 0.006), _std(Color(0.08, 0.05, 0.04), 0.2, 0.6), Vector3(0, -length / 2 + length * (i + 0.5) / 5, 0)))
+	# a crossguard whose arms narrow and sweep toward the blade
+	var guard := func(span: float, mat: Material, sweep: float) -> void:
+		g.add_child(_part(box.call(0.034, 0.03, 0.07), mat, Vector3(0, 0.115, 0)))
+		for side in [-1.0, 1.0]:
+			var arm := _part(cyl.call(0.007, 0.015, span), mat, Vector3(0, 0.115 + sweep * span * 0.5, side * (0.03 + span * 0.5)))
+			arm.rotation.x = side * (PI / 2 - sweep); g.add_child(arm)
+			g.add_child(_part(ball.call(0.012), mat, Vector3(0, 0.115 + sweep * span, side * (0.03 + span))))
 	if kind == "katana":
 		# A long slender blade with a gentle backward curve, a round guard and a grip bound in crimson.
-		var n := 9
-		var length := 0.74
+		var n := 12
+		var length := 0.78
 		for i in n:
 			var t0 := float(i) / n
 			var t1 := float(i + 1) / n
-			var z0 := -0.07 * t0 * t0
-			var z1 := -0.07 * t1 * t1
-			var seg := _part(box.call(0.005, length / n * 1.04, 0.03 * (1.0 - t0 * 0.12) * (1.0 if i < n - 1 else 0.6)), blade_mat, Vector3(0, 0.15 + (t0 + t1) / 2 * length, (z0 + z1) / 2))
+			var z0 := -0.075 * t0 * t0
+			var z1 := -0.075 * t1 * t1
+			var last := i == n - 1
+			var seg := _part(_blade(length / n * 1.03, 0.03 * (1.0 - t1 * 0.15), 0.006, 0.05 if last else 1.0, 0.03 * (1.0 - t0 * 0.15)), blade_mat, Vector3(0, 0.15 + t0 * length, z0))
 			seg.rotation.x = atan2(z1 - z0, length / n)
 			g.add_child(seg)
-		var guard := _part(cyl.call(0.05, 0.008), _std(Color(0.14, 0.1, 0.08), 0.4, 0.5), Vector3(0, 0.142, 0)); g.add_child(guard)
-		g.add_child(_part(cyl.call(0.017, 0.27), _std(Color(0.56, 0.08, 0.12), 0, 0.8), Vector3.ZERO))
-		g.add_child(_part(cyl.call(0.02, 0.024), gold, Vector3(0, -0.145, 0)))
+		var disc := _part(cyl.call(0.046, 0.046, 0.007), _std(Color(0.1, 0.08, 0.07), 0.6, 0.45), Vector3(0, 0.142, 0)); disc.scale = Vector3(0.8, 1, 1); g.add_child(disc)
+		g.add_child(_part(cyl.call(0.02, 0.02, 0.02), gold, Vector3(0, 0.128, 0)))
+		grip.call(0.27, _std(Color(0.5, 0.06, 0.1), 0.0, 0.8))
+		g.add_child(_part(cyl.call(0.02, 0.017, 0.024), gold, Vector3(0, -0.146, 0)))
 	elif kind == "divine":
-		# Dawnbreaker: a broad blade of pale gold with a winged guard and a sun at its heart.
-		g.add_child(_part(box.call(0.016, 0.84, 0.1), blade_mat, Vector3(0, 0.57, 0)))
-		g.add_child(_part(box.call(0.02, 0.62, 0.02), gold, Vector3(0, 0.5, 0)))
-		g.add_child(_part(cyl.call(0.022, 0.22), _std(Color(0.95, 0.93, 0.88), 0.3, 0.4), Vector3.ZERO))
-		g.add_child(_part(box.call(0.04, 0.04, 0.34), gold, Vector3(0, 0.14, 0)))
-		var gem := SphereMesh.new(); gem.radius = 0.035; gem.height = 0.07
-		var gm := _std(Color(1, 0.96, 0.78)); gm.emission_enabled = true; gm.emission = Color(1, 0.84, 0.4); gm.emission_energy_multiplier = 2.0
-		g.add_child(_part(gem, gm, Vector3(0, 0.15, 0)))
-		g.add_child(_part(gem, gold, Vector3(0, -0.15, 0)))
+		# Dawnbreaker: a broad leaf-shaped blade of pale gold, upswept wings for a guard and a sun at its heart.
+		g.add_child(_part(_blade(0.98, 0.085, 0.018, 0.72, 0.105), blade_mat, Vector3(0, 0.13, 0)))
+		g.add_child(_part(_blade(0.62, 0.02, 0.024, 0.9), gold, Vector3(0, 0.14, 0)))       # the raised rib down the middle
+		grip.call(0.22, _std(Color(0.93, 0.9, 0.84), 0.2, 0.5))
+		for side in [-1.0, 1.0]:
+			for i in 3:
+				var feather := _part(_blade(0.2 - i * 0.04, 0.045 - i * 0.008, 0.012, 0.35), gold, Vector3(0, 0.115 + i * 0.012, side * 0.03))
+				feather.rotation.x = side * (1.25 - i * 0.3); g.add_child(feather)
+		var sun := _part(cyl.call(0.05, 0.05, 0.03), gold, Vector3(0, 0.125, 0)); sun.rotation.z = PI / 2; g.add_child(sun)
+		var gm := _std(Color(1, 0.96, 0.78)); gm.emission_enabled = true; gm.emission = Color(1, 0.84, 0.4); gm.emission_energy_multiplier = 2.5
+		var gem := _part(ball.call(0.026), gm, Vector3(0, 0.125, 0)); gem.scale = Vector3(1.5, 1, 1); g.add_child(gem)
+		var pommel := _part(_blade(0.07, 0.05, 0.05, 0.5), gold, Vector3(0, -0.11, 0)); pommel.rotation.x = PI; g.add_child(pommel)
 	else:
-		g.add_child(_part(cyl.call(0.02, 0.2), _std(Color(0.29, 0.2, 0.12)), Vector3.ZERO))
-		var pm := SphereMesh.new(); pm.radius = 0.035; pm.height = 0.07; g.add_child(_part(pm, gold, Vector3(0, -0.12, 0)))
-		g.add_child(_part(box.call(0.035, 0.035, 0.24), gold, Vector3(0, 0.11, 0)))
-		g.add_child(_part(box.call(0.014, 0.88, 0.07), blade_mat, Vector3(0, 0.56, 0)))
+		# A knight's longsword: tapering steel blade with a dark channel, swept crossguard, leather grip, wheel pommel.
+		g.add_child(_part(_blade(0.92, 0.05, 0.012, 0.8, 0.062), blade_mat, Vector3(0, 0.13, 0)))
+		g.add_child(_part(_blade(0.55, 0.014, 0.014, 0.9), _std(Color(0.25, 0.26, 0.28), 0.9, 0.4), Vector3(0, 0.135, 0)))
+		grip.call(0.2, leather)
+		guard.call(0.1, steel, 0.22)
+		var wheel := _part(cyl.call(0.03, 0.03, 0.02), steel, Vector3(0, -0.125, 0)); wheel.rotation.z = PI / 2; g.add_child(wheel)
 	return g
 
 func _show(want: Dictionary, clip: String, time: float, weight := 1.0) -> void:

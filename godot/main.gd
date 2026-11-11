@@ -2,7 +2,7 @@ extends Node3D
 ## The Duel, Godot edition. This script runs the whole game: the menu, a match, the camera, sounds and effects.
 ## The rules themselves are in scripts/sim.gd; this only feeds them the player's thumbs and shows what they decide.
 
-const VERSION := "0.2"
+const VERSION := "0.3"
 const CAM := {"dist": 3.5, "side": 1.0, "height": 1.4, "pitch": 0.26, "fov": 54.0}
 
 var arena: Arena
@@ -16,7 +16,7 @@ var views: Array[FighterView] = []
 var rival: Rival
 var roster: Array
 var mode := "menu"          # menu, fight, result
-var pick := 2               # which fighter the player has chosen (index into the roster)
+var pick := int(OS.get_environment("DUEL_PICK")) if OS.get_environment("DUEL_PICK") != "" else 2   # which fighter the player has chosen (index into the roster)
 var foe := 0
 var level := "normal"
 var low := false

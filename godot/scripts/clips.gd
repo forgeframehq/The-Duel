@@ -31,10 +31,20 @@ static func _convert(src: Animation, clip_name: String) -> Animation:
 	out.length = src.length
 	out.loop_mode = Animation.LOOP_NONE
 	var free_root := clip_name in FREE_ROOT
+	# Each file holds one skeleton per clip it was packed from, and every clip carries tracks for all of them: real motion
+	# for its own skeleton and a single frozen key for each of the others. Find the skeleton that actually moves.
+	var motion := {}
+	for t in src.get_track_count():
+		var owner := str(src.track_get_path(t)).get_slice("/", 0)
+		motion[owner] = motion.get(owner, 0) + src.track_get_key_count(t)
+	var mover := ""
+	for owner in motion:
+		if mover == "" or motion[owner] > motion[mover]: mover = owner
 	for t in src.get_track_count():
 		var kind := src.track_get_type(t)
 		if kind != Animation.TYPE_ROTATION_3D and kind != Animation.TYPE_POSITION_3D: continue
 		var parts := str(src.track_get_path(t)).split("/")
+		if parts[0] != mover: continue
 		# "Armature6" -> "6": the number Godot added to every name in that source's tree
 		var suffix := parts[0].trim_prefix("Armature")
 		var bone := parts[parts.size() - 1]
