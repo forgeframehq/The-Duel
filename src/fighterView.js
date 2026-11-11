@@ -61,7 +61,32 @@ function buildWeapon(kind, bladeMat) {
   // Built pointing along +Y from the grip, in metres.
   const g = new THREE.Group(), wood = std(0x4a3320), gold = std(0xd9b45a, { metalness: 0.6, roughness: 0.35 });
   let tipY, baseY;
-  if (kind === 'spear') {
+  if (kind === 'divine') {
+    // A long tapering blade of pale gold that glows faintly, with a winged guard and a sun at its heart.
+    const bright = std(0xf0c64e, { metalness: 0.85, roughness: 0.22 }), white = std(0xf4eee0, { metalness: 0.3, roughness: 0.4 });
+    const b = new THREE.Shape();
+    b.moveTo(-0.05, 0); b.lineTo(-0.042, 0.78); b.lineTo(0, 1.0); b.lineTo(0.042, 0.78); b.lineTo(0.05, 0); b.closePath();
+    const blade = part(new THREE.ExtrudeGeometry(b, { depth: 0.016, bevelEnabled: false }), bladeMat, 0.008, 0.15, 0);
+    blade.rotation.y = -Math.PI / 2; // the flat of the blade lies in the swing plane, like the plain sword
+    const fuller = part(new THREE.BoxGeometry(0.02, 0.62, 0.012), bright, 0, 0.5, 0);
+    g.add(blade, fuller);
+    g.add(part(new THREE.CylinderGeometry(0.02, 0.024, 0.22, 8), white, 0, 0, 0), part(new THREE.CylinderGeometry(0.027, 0.027, 0.02, 8), bright, 0, -0.05, 0), part(new THREE.CylinderGeometry(0.027, 0.027, 0.02, 8), bright, 0, 0.05, 0));
+    g.add(part(new THREE.OctahedronGeometry(0.045, 0), bright, 0, -0.15, 0));
+    for (const side of [-1, 1]) {
+      // Upswept wings for a crossguard, three feathers a side
+      for (let i = 0; i < 3; i++) {
+        const feather = part(new THREE.ConeGeometry(0.022 - i * 0.004, 0.2 - i * 0.04, 4), bright, 0, 0.15 + i * 0.035, side * (0.09 + i * 0.012));
+        feather.rotation.x = side * (1.15 - i * 0.28); feather.scale.x = 0.45;
+        g.add(feather);
+      }
+    }
+    const sun = part(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 12), bright, 0, 0.15, 0);
+    sun.rotation.z = Math.PI / 2;
+    const gem = part(new THREE.SphereGeometry(0.024, 8, 6), std(0xfff6c8, { emissive: 0xffd76a, emissiveIntensity: 1.6 }), 0, 0.15, 0);
+    gem.scale.x = 1.5;
+    g.add(sun, gem);
+    tipY = 1.15; baseY = 0.25;
+  } else if (kind === 'spear') {
     g.add(part(new THREE.CylinderGeometry(0.018, 0.02, 2.1, 7), wood, 0, 0.45, 0));
     g.add(part(new THREE.ConeGeometry(0.045, 0.3, 6), bladeMat, 0, 1.65, 0), part(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 7), gold, 0, 1.48, 0));
     tipY = 1.8; baseY = 0.9;
@@ -89,16 +114,32 @@ function buildWeapon(kind, bladeMat) {
   return { g, tip, base };
 }
 
-function buildShield(team) {
+function buildShield(team, style) {
   // Kite shield, face along +Z, strap at the origin.
-  const s = new THREE.Shape(), w = 0.2, top = 0.26, bot = -0.4;
+  const divine = style === 'divine';
+  const s = new THREE.Shape(), w = divine ? 0.24 : 0.2, top = divine ? 0.3 : 0.26, bot = divine ? -0.5 : -0.4;
   s.moveTo(0, top); s.quadraticCurveTo(w, top, w, top - 0.2); s.quadraticCurveTo(w * 0.92, -0.15, 0, bot);
   s.quadraticCurveTo(-w * 0.92, -0.15, -w, top - 0.2); s.quadraticCurveTo(-w, top, 0, top);
-  const g = new THREE.Group();
-  const rim = part(new THREE.ExtrudeGeometry(s, { depth: 0.03, bevelEnabled: false }), std(0xc9a04a, { metalness: 0.6, roughness: 0.4 }), 0, 0, 0);
+  const g = new THREE.Group(), gold = std(divine ? 0xf0c64e : 0xc9a04a, { metalness: divine ? 0.85 : 0.6, roughness: divine ? 0.25 : 0.4 });
+  const rim = part(new THREE.ExtrudeGeometry(s, { depth: 0.03, bevelEnabled: false }), gold, 0, 0, 0);
   rim.scale.set(1.07, 1.05, 1);
-  const face = part(new THREE.ExtrudeGeometry(s, { depth: 0.03, bevelEnabled: false }), std(TEAM[team], { roughness: 0.75 }), 0, 0, 0.012);
-  g.add(rim, face, part(new THREE.SphereGeometry(0.06, 8, 6), std(0xd9b45a, { metalness: 0.7, roughness: 0.3 }), 0, 0.05, 0.05));
+  const face = part(new THREE.ExtrudeGeometry(s, { depth: 0.03, bevelEnabled: false }), std(divine ? 0xf2ecdc : TEAM[team], { roughness: divine ? 0.45 : 0.75, metalness: divine ? 0.25 : 0 }), 0, 0, 0.012);
+  g.add(rim, face);
+  if (divine) {
+    // White enamel with a golden sunburst; the gem at its centre carries the team colour.
+    const cy = 0.02;
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2, long = i % 3 === 0, len = long ? 0.2 : 0.12;
+      const ray = part(new THREE.ConeGeometry(long ? 0.022 : 0.016, len, 4), gold, Math.sin(a) * (0.07 + len / 2), cy + Math.cos(a) * (0.07 + len / 2), 0.047);
+      ray.rotation.z = -a; ray.scale.z = 0.3;
+      g.add(ray);
+    }
+    const disc = part(new THREE.CylinderGeometry(0.085, 0.085, 0.02, 20), gold, 0, cy, 0.05);
+    disc.rotation.x = Math.PI / 2;
+    const gem = part(new THREE.SphereGeometry(0.045, 10, 8), std(TEAM[team], { emissive: TEAM[team], emissiveIntensity: 0.9, roughness: 0.2 }), 0, cy, 0.058);
+    gem.scale.z = 0.6;
+    g.add(disc, gem);
+  } else g.add(part(new THREE.SphereGeometry(0.06, 8, 6), std(0xd9b45a, { metalness: 0.7, roughness: 0.3 }), 0, 0.05, 0.05));
   return g;
 }
 
@@ -131,12 +172,15 @@ export class FighterView {
     const bones = {};
     model.traverse((o) => { if (o.isBone) bones[o.name] = o; if (o.isMesh) dye(o.material, team, def.id, def.cloth); });
     this.bladeMat = std(0xdfe4e8, { metalness: 0.85, roughness: 0.25, emissive: 0xff5a1a, emissiveIntensity: 0 });
+    // A divine blade is pale gold and always glows a little; a heavy attack makes it blaze.
+    this.baseGlow = 0;
+    if (def.weapon === 'divine') { this.bladeMat.color.set(0xfff0c4); this.bladeMat.emissive.set(0xffc23a); this.baseGlow = 0.55; this.bladeMat.emissiveIntensity = 0.55; }
     const weapon = buildWeapon(def.weapon, this.bladeMat);
     this.tip = weapon.tip; this.base = weapon.base;
     // The clips were not made with a weapon in hand, so these angles are a best fit across all the moves:
     // a sword sits diagonally out of the fist, a spear lies along the palm, the shield faces out from the forearm.
     attach(bones.RightHand, weapon.g, def.weapon === 'spear' ? [Math.PI / 2, 0, 0] : [Math.PI / 4, 0, 0]);
-    attach(bones.LeftForeArm, buildShield(team), [0, -Math.PI * 0.75, 0], [-0.04, 0.16, -0.04]);
+    attach(bones.LeftForeArm, buildShield(team, def.weapon), [0, -Math.PI * 0.75, 0], [-0.04, 0.16, -0.04]);
     this.chest = bones.Spine01 || bones.Spine;
 
     // Coloured ring on the ground so the two sides are never confused, even with the same fighter.
@@ -234,7 +278,7 @@ export class FighterView {
 
     // Heavy attacks glow while charging so they can be read and answered on a small screen.
     const charging = f.state === 'attack' && f.atk.heavy && f.t < f.atk.windup + f.atk.active;
-    const glow = charging ? smooth(f.t / f.atk.windup) * 2.4 : 0;
+    const glow = charging ? this.baseGlow + smooth(f.t / f.atk.windup) * 2.4 : this.baseGlow;
     this.bladeMat.emissiveIntensity += (glow - this.bladeMat.emissiveIntensity) * Math.min(1, 20 * dt);
     this.ring.material.opacity = f.state === 'dead' ? 0.25 : 0.75;
   }

@@ -1,6 +1,11 @@
 // roster.js — the fighters you can pick. Models come from Dawn of Dynasties.
 // `stats` feeds straight into the rules (sim.js); this is also where upgrades will plug in later.
 export const ROSTER = [
+  // The first fighter of The Duel. Made from a concept image (tools/fighters/sun_warlord.png) with tools/new_fighter.py,
+  // on the shared skeleton. Weapons are attached by the game, so `weapon` picks which ones.
+  { id: 'sun_warlord', name: 'Aurelian the Sun-Crowned', origin: 'The Gilded Order', weapon: 'divine',
+    blurb: 'A warlord in white and gold who has never lost in the arena. He carries Dawnbreaker, a blade said to hold the first light of morning, and a shield bearing the sun. Every blow lands like judgement, but all that plate makes him the slowest man on the sand.',
+    stats: { maxHp: 112, maxStam: 85, power: 1.3, armor: 0.2, speed: 3.8, reach: 0.1 } },
   { id: 'franks_knight', name: 'Frankish Knight', origin: 'Franks', weapon: 'sword',
     blurb: 'Mail, shield and a straight sword. No weakness, no tricks.',
     stats: { maxHp: 100, maxStam: 100, power: 1.0, armor: 0.1, speed: 4.4, reach: 0 } },
@@ -25,14 +30,10 @@ export const ROSTER = [
   { id: 'franks_king', name: 'The King', origin: 'Franks', weapon: 'sword',
     blurb: 'Every blow is a royal decree. Tires quickly and moves like a monarch.',
     stats: { maxHp: 110, maxStam: 82, power: 1.28, armor: 0.1, speed: 4.0, reach: 0 } },
-  // Made with tools/new_fighter.py: a Meshy body on the shared skeleton. `cloth` says which colour the game re-dyes per team.
-  { id: 'plate_knight', name: 'The Black Knight', origin: 'The Iron Gate', weapon: 'sword', cloth: 'red',
-    blurb: 'Sworn champion of the Iron Gate, sealed in blackened plate from helm to heel. He is slow to reach you and tires early, but blows that would fell another man barely turn his head.',
+  // The first body made with the Meshy pipeline, kept for trying things out. `cloth` says which colour the game re-dyes per team.
+  { id: 'plate_knight', name: 'Test Dummy', origin: 'The Training Yard', weapon: 'sword', cloth: 'red',
+    blurb: 'A suit of plate that stands where it is told and takes what it is given. Good for practice.',
     stats: { maxHp: 115, maxStam: 90, power: 1.1, armor: 0.22, speed: 4.0, reach: 0 } },
-  // Made from a concept image (tools/fighters/sun_warlord.png).
-  { id: 'sun_warlord', name: 'Aurelian the Sun-Crowned', origin: 'The Gilded Order', weapon: 'mace',
-    blurb: 'A warlord in white and gold who has never lost in the arena. His mace lands like a falling wall and his armour turns most blows, but all that plate makes him the slowest man on the sand.',
-    stats: { maxHp: 112, maxStam: 85, power: 1.3, armor: 0.2, speed: 3.8, reach: 0 } },
 ];
 
 export const byId = (id) => ROSTER.find((r) => r.id === id) || ROSTER[0];
