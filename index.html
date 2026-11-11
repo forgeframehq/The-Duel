@@ -92,11 +92,20 @@
         <div class="d-text"><small id="d-origin"></small><h3 id="d-name"></h3><p id="d-blurb"></p></div>
       </div>
       <div id="d-stats"></div>
-      <div class="levels" role="group" aria-label="Difficulty">
-        <button data-level="easy">Squire</button>
-        <button data-level="normal" class="on">Knight</button>
-        <button data-level="hard">Champion</button>
+      <div class="skill">
+        <span>Rival skill</span>
+        <div class="levels" role="group" aria-label="Rival skill">
+          <button data-level="easy">Easy</button>
+          <button data-level="normal" class="on">Normal</button>
+          <button data-level="hard">Hard</button>
+        </div>
       </div>
+      <ul id="guide">
+        <li><b>Block</b> stops a light attack and opens them up</li>
+        <li><b>Heavy</b> breaks a block, but is slow</li>
+        <li><b>Attack</b> lands first and interrupts a heavy</li>
+        <li><b>Dodge</b> avoids anything, at a stamina cost</li>
+      </ul>
       <button id="go">TO BATTLE</button>
     </aside>
   </div>

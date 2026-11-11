@@ -2,10 +2,13 @@
 // exactly like a human player's input does.
 import { hasLOS, angDiff, PARRY_WINDOW } from './sim.js';
 
+// react: seconds before it responds. block/parry/dodge: chance of each answer to an incoming swing.
+// punish: chance it takes an opening. breakGuard: chance it answers a held block with a heavy attack.
+// smart: whether it knows to dodge a heavy attack instead of blocking it. guard: how often it circles with its shield up.
 export const DIFFICULTY = {
-  easy: { react: 0.4, block: 0.25, parry: 0.03, dodge: 0.08, aggro: 0.45, heavy: 0.15, comboMax: 2, rest: 1.5 },
-  normal: { react: 0.22, block: 0.45, parry: 0.1, dodge: 0.18, aggro: 0.65, heavy: 0.25, comboMax: 3, rest: 1.0 },
-  hard: { react: 0.13, block: 0.55, parry: 0.27, dodge: 0.15, aggro: 0.85, heavy: 0.3, comboMax: 3, rest: 0.6 },
+  easy: { react: 0.42, block: 0.3, parry: 0, dodge: 0.04, aggro: 0.38, heavy: 0.2, comboMax: 2, rest: 1.7, punish: 0.4, breakGuard: 0.15, smart: false, guard: 0.3 },
+  normal: { react: 0.26, block: 0.4, parry: 0.04, dodge: 0.12, aggro: 0.58, heavy: 0.22, comboMax: 3, rest: 1.1, punish: 0.75, breakGuard: 0.5, smart: true, guard: 0.45 },
+  hard: { react: 0.15, block: 0.48, parry: 0.15, dodge: 0.2, aggro: 0.8, heavy: 0.25, comboMax: 3, rest: 0.6, punish: 1, breakGuard: 0.85, smart: true, guard: 0.5 },
 };
 
 function rng(seed) {
@@ -22,11 +25,11 @@ export function createAI(level = 'normal', seed = 1234) {
   return {
     p: DIFFICULTY[level] || DIFFICULTY.normal, rand: rng(seed),
     mode: 'approach', modeT: 0, modeDur: 1, circleDir: 1, comboLeft: 0, wantHeavy: false,
-    seenSwing: -1, react: null, blockUntil: 0, lastSeen: null, clock: 0, lastRound: -1,
+    seenSwing: -1, openingKey: '', blockKey: '', takeOpening: false, react: null, blockUntil: 0, lastSeen: null, clock: 0, lastRound: -1,
   };
 }
 
-function setMode(ai, mode, dur) { ai.mode = mode; ai.modeT = 0; ai.modeDur = dur; }
+function setMode(ai, mode, dur) { ai.mode = mode; ai.modeT = 0; ai.modeDur = dur; ai.guarding = mode === 'circle' && ai.rand() < ai.p.guard; }
 
 // Push the desired direction away from, and around, nearby obstacles.
 function steer(w, f, dx, dz) {
@@ -82,12 +85,14 @@ export function thinkAI(ai, w, selfIdx) {
     const impact = ai.clock + (e.atk.windup - e.t);
     const roll = r();
     if (roll < p.parry) ai.react = { type: 'block', at: impact - PARRY_WINDOW * 0.6, until: impact + 0.25 };
+    else if (e.atk.heavy && p.smart && roll < p.parry + p.block + p.dodge) ai.react = { type: 'dodge', at: Math.max(ai.clock + p.react, impact - 0.14) };
     else if (roll < p.parry + p.block) {
       // A plain block goes up early enough that it is not an accidental parry.
       // If there is no time left to do that, the shield comes up late and this swing lands.
       const early = impact - PARRY_WINDOW - 0.04;
       const at = early >= ai.clock + 0.05 ? Math.min(ai.clock + p.react, early) : impact + 0.03;
-      ai.react = { type: 'block', at, until: impact + 0.3 };
+      // A late shield stays up long enough to stop the next swing of a combo.
+      ai.react = { type: 'block', at, until: impact + (early >= ai.clock + 0.05 ? 0.3 : 0.8) };
     }
     else if (roll < p.parry + p.block + p.dodge) ai.react = { type: 'dodge', at: Math.max(ai.clock + p.react, impact - 0.12) };
     else ai.react = null;
@@ -107,10 +112,25 @@ export function thinkAI(ai, w, selfIdx) {
   }
 
   // --- Offence
-  const opening = (e.state === 'stagger' && e.staggerDur - e.t > 0.25) || (e.state === 'attack' && e.t > e.atk.windup + e.atk.active);
-  if (opening && dist < 3.4 && f.stam > 20 && ai.mode !== 'attack' && los) {
+  // Out of breath: back off and recover.
+  if (f.winded > 0 && ai.mode !== 'retreat') setMode(ai, 'retreat', 1.4);
+
+  // An opening is the enemy off balance or recovering from a swing. Decide once per opening whether to take it.
+  const opening = (e.state === 'stagger' && e.staggerDur - e.t > 0.25) || (e.state === 'attack' && e.t > e.atk.windup + e.atk.active) || e.winded > 0.4;
+  const key = e.state + ':' + e.swingId + ':' + (e.state === 'stagger' ? Math.round((ai.clock - e.t) * 5) : 0);
+  if (opening && key !== ai.openingKey) { ai.openingKey = key; ai.takeOpening = r() < p.punish; }
+  if (opening && ai.takeOpening && dist < 3.4 + (f.stats.reach || 0) && f.stam > 20 && f.winded <= 0 && ai.mode !== 'attack' && los) {
     ai.comboLeft = 1 + Math.floor(r() * p.comboMax); ai.wantHeavy = e.parried && r() < 0.7;
     setMode(ai, 'attack', 2.5);
+  }
+
+  // A fighter hiding behind a shield gets a heavy attack, which breaks a block.
+  if (e.state === 'block' && e.blockT > 0.45 && los && dist < 3.4 && f.stam > 35 && f.winded <= 0 && ai.mode !== 'attack') {
+    const bk = 'block:' + Math.round((ai.clock - e.blockT) * 4);
+    if (bk !== ai.blockKey) {
+      ai.blockKey = bk;
+      if (r() < p.breakGuard) { ai.comboLeft = 1; ai.wantHeavy = true; setMode(ai, 'attack', 2.0); }
+    }
   }
 
   const facing = Math.abs(angDiff(f.yaw, toE)) < 0.5;
@@ -129,6 +149,8 @@ export function thinkAI(ai, w, selfIdx) {
       const want = 3.1, radial = Math.max(-1, Math.min(1, (dist - want) * 0.9));
       const [sx, sz] = steer(w, f, -nz * ai.circleDir + nx * radial, nx * ai.circleDir + nz * radial);
       cmd.mx = sx * 0.75; cmd.mz = sz * 0.75;
+      // Sometimes it circles behind its shield, which light attacks bounce off: break it with a heavy, or get round the side.
+      if (ai.guarding && dist < 4.5 && f.stam > 25 && (f.state === 'idle' || f.state === 'block')) cmd.block = true;
       if (!los || dist > 6) setMode(ai, 'approach', 1);
       else if (f.stam < 22) setMode(ai, 'retreat', 1.2 + r());
       else if (ai.modeT > ai.modeDur) {
@@ -142,12 +164,12 @@ export function thinkAI(ai, w, selfIdx) {
       if (dist > reach) { const [sx, sz] = steer(w, f, ux, uz); cmd.mx = sx; cmd.mz = sz; }
       const canStart = f.state === 'idle' || f.state === 'block';
       const canChain = f.state === 'attack' && f.t > f.atk.windup + f.atk.active && !f.queued;
-      if (dist <= reach + 0.25 && facing && ai.comboLeft > 0 && (canStart || canChain) && f.stam > 8) {
+      if (dist <= reach + 0.25 && facing && ai.comboLeft > 0 && (canStart || canChain) && f.stam > 16) {
         if (ai.wantHeavy) { cmd.heavy = true; ai.wantHeavy = false; } else cmd.attack = true;
         ai.comboLeft--;
       }
       const done = ai.comboLeft <= 0 && f.state === 'idle';
-      if (done || ai.modeT > ai.modeDur || !los || f.stam < 6) {
+      if (done || ai.modeT > ai.modeDur || !los || f.stam < 14) {
         ai.circleDir = r() < 0.5 ? 1 : -1;
         if (f.stam < 30 || r() > p.aggro) setMode(ai, 'retreat', 0.7 + r() * p.rest);
         else setMode(ai, 'circle', 0.3 + r() * p.rest);

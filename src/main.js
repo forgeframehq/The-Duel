@@ -81,6 +81,7 @@ function updateHud() {
     hud.hp[i].style.width = hud.ghost[i].style.width = hp + '%';
     hud.st[i].style.width = st + '%';
     hud.st[i].classList.toggle('low', st < 22);
+    hud.st[i].parentElement.classList.toggle('winded', f.winded > 0);
     [...hud.pips[i].children].forEach((el, k) => {
       // The rival's pips fill from the outside in, mirroring the player's.
       const idx = i === 0 ? k : ROUNDS_TO_WIN - 1 - k;
@@ -116,6 +117,11 @@ function label(text, x, y, z, cls = '') {
 
 function pulse(id, ms) { const el = $(id); el.classList.add('on'); setTimeout(() => el.classList.remove('on'), ms); }
 
+// One of these shows under the round banner, so the rules of the exchange sink in over a few rounds.
+const TIPS = ['Block stops a light attack, then strike back', 'A heavy attack breaks a block', 'Dodge the glowing heavy, then punish', 'Empty stamina leaves you exhausted',
+  'Hit first to interrupt a heavy', 'Block at the last moment to parry', 'A missed swing leaves you open', 'Strike from behind for extra damage'];
+let tipIndex = 0;
+
 // ---------- Turning rule events into things you see, hear and feel ----------
 function handleEvents() {
   for (const e of world.events) {
@@ -124,7 +130,7 @@ function handleEvents() {
         views.forEach((v, i) => v.snap(world.fighters[i]));
         trails.forEach((t) => { t.count = 0; });
         cam.yaw = world.fighters[0].yaw; cam.pitch = 0.36; locked = false; lostT = 0;
-        if (app === 'playing') { banner('ROUND ' + world.round, 'Ready', 1.9); sfx.horn(); }
+        if (app === 'playing') { banner('ROUND ' + world.round, TIPS[(tipIndex++) % TIPS.length], 2.1); sfx.horn(); }
         break;
       case 'fight': banner('FIGHT!', '', 1.0); sfx.gong(); break;
       case 'swing': sfx.swing(e.heavy); break;
@@ -135,6 +141,12 @@ function handleEvents() {
         break;
       }
       case 'evade': label('EVADE', e.x, 2.1, e.z, 'call'); break;
+      case 'winded': {
+        const f = world.fighters[e.id];
+        label('EXHAUSTED', f.x, 2.3, f.z, e.id === 0 ? 'call hurt' : 'call');
+        if (e.id === 0) buzz(60);
+        break;
+      }
       case 'hit': {
         const mine = e.id === 0;
         hitStop = Math.max(hitStop, e.kill ? 0.2 : e.heavy ? 0.13 : 0.07);
@@ -144,6 +156,8 @@ function handleEvents() {
         sfx.hit(e.heavy);
         label(String(Math.round(e.dmg)), e.x, 2.0, e.z, mine ? (e.heavy || e.backstab ? 'big' : '') : 'hurt');
         if (e.backstab) label('BACKSTAB', e.x, 2.5, e.z, 'call');
+        else if (e.riposte) label('RIPOSTE', e.x, 2.5, e.z, 'call');
+        else if (e.counter) label('COUNTER', e.x, 2.5, e.z, 'call');
         if (!mine) { pulse('vignette', 120); buzz(e.heavy ? 90 : 45); } else buzz(20);
         if (e.kill) { slowT = 1.5; slowScale = 0.22; sfx.death(); pulse('flash', 60); }
         break;
@@ -152,6 +166,7 @@ function handleEvents() {
         hitStop = Math.max(hitStop, 0.05); shake.add(e.heavy ? 0.5 : 0.28);
         particles.emit(e.x, 1.3, e.z, e.heavy ? 22 : 12, 0xfff0b0, 6, 0.3);
         sfx.block();
+        label('BLOCKED', e.x, 2.1, e.z, 'call');
         if (e.target === 0) buzz(25);
         break;
       case 'parry':

@@ -48,7 +48,7 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 #banner { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; opacity: 0; }
 #banner.show { animation: banner var(--dur, 1.6s) both; }
 #banner-main { font-family: var(--display); font-size: calc(var(--u) * 16); letter-spacing: .1em; color: #fff3cf; text-shadow: 0 0 2.5vh rgba(255, 150, 40, .85), 0 .5vh 0 #5e3a10, 0 .8vh 2vh #000; }
-#banner-sub { font-size: calc(var(--u) * 4); letter-spacing: .4em; color: var(--gold); text-shadow: 0 2px 4px #000; margin-top: 1vh; }
+#banner-sub { font-size: calc(var(--u) * 3.4); letter-spacing: .16em; color: var(--gold); text-shadow: 0 2px 4px #000; margin-top: 1vh; }
 @keyframes banner { 0% { opacity: 0; transform: scale(1.7); } 12% { opacity: 1; transform: scale(1); } 80% { opacity: 1; transform: scale(1.04); } 100% { opacity: 0; transform: scale(1.1); } }
 
 /* ---------- Floating combat text ---------- */
@@ -58,6 +58,7 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 #labels span.big { font-size: calc(var(--u) * 7.5); color: #ffb347; }
 #labels span.hurt { color: #ff6b57; }
 #labels span.call { font-size: calc(var(--u) * 5); letter-spacing: .18em; color: var(--gold); animation-duration: 1.1s; }
+#labels span.call.hurt { color: #ff6b57; }
 @keyframes rise { 0% { opacity: 0; margin-top: 0; scale: 1.6; } 15% { opacity: 1; scale: 1; } 100% { opacity: 0; margin-top: -9vh; } }
 
 /* ---------- Touch controls ---------- */
@@ -150,6 +151,13 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 #go { margin-top: auto; height: 15vh; font-size: calc(var(--u) * 5); font-weight: 800; letter-spacing: .2em; text-indent: .2em; color: #fff3cf; text-shadow: 0 2px 0 #000;
   background: url(assets/ui/button.png) center / 100% 100% no-repeat; }
 #go:disabled { filter: grayscale(.7) brightness(.8); }
+.skill { display: flex; align-items: center; gap: 1.2vw; }
+.skill span { flex: none; font-size: calc(var(--u) * 2.2); letter-spacing: .14em; text-transform: uppercase; color: var(--gold-dim); }
+.skill .levels { flex: 1; }
+#guide { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: .5vh 1.4vw; font-family: system-ui, sans-serif; font-weight: 400; font-size: calc(var(--u) * 2.15); line-height: 1.3; color: #cdbd9a; text-align: left; }
+#guide b { color: var(--gold); font-weight: 700; }
+.st.winded { animation: winded .28s steps(2) infinite; }
+@keyframes winded { 50% { background: linear-gradient(#7a1a10, #7a1a10) padding-box, var(--bevel) border-box; } }
 .ghost { display: block; margin: 2vh auto 0; padding: 1.6vh 4vw; font-size: calc(var(--u) * 3); letter-spacing: .1em; }
 #studio { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center;
   background: radial-gradient(ellipse at center, #2a1a0c 0%, #0c0805 70%); opacity: 1; transition: opacity .8s cubic-bezier(.4, 0, .6, 1); will-change: opacity; }
