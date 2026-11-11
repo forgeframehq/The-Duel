@@ -141,7 +141,9 @@ What Shadow Fight does (from guides, not from playing it): a joystick plus a few
 3. Automatic guard: not attacking and facing the rival blocks normal hits (worn down by a guard meter). Blue charged strikes go through a guard: those must be parried or dodged. Parry becomes a timed deflect with a cooldown.
 4. Smoothness: buy proper animations for each move (about 20 clips at 3 credits each from the 72 left), let the feet travel with the attack instead of sliding (hips are pinned today), longer blends, weightier hit reactions.
 5. Special charged by fighting (an energy bar) instead of a clock.
-6. Side-on camera as the default in a duel, so both fighters are always whole on screen as in Shadow Fight. Asked him.
+6. ~~Side-on camera as the default~~ **Decided 12:59: keep the 3D behind-the-fighter view.** "I like the 3D style of fight."
+
+**Guard (he asked Claude's opinion, 12:59).** Claude advised against a fully automatic guard in 3D: with lock-on you are always moving and circling, so "not attacking = blocking" would mean blocking nearly all the time, fights turn passive, and it takes a decision away from the player. Recommended instead, awaiting his answer: **one Guard button (the Parry button)**. Hold it to guard: normal hits from the front are blocked, each one draining a guard meter; when the meter empties the guard breaks and the fighter is staggered. Press it just as a hit lands for a **parry**: a normal hit is deflected and the attacker is thrown off balance, a blue strike is deflected and disarms. Blue strikes and specials go through a held guard; hits from behind go through. The cooldown ring applies to parry attempts, not to holding guard. A fully automatic guard could be offered later as an easy-mode assist.
 
 Done in build 18: the arrows, the two-button strings, the disarming parry, see-through icon buttons, arena choice, quieter music, the frame cap, and the layout faults. Still open from that feedback:
 
