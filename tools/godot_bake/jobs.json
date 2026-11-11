@@ -1,0 +1,178 @@
+{
+ "calibrate": {
+  "q": {
+   "file": "res://src/q/UAL1_Standard.glb",
+   "clip": "Sword_Idle",
+   "want": [
+    0,
+    0.7,
+    0.7
+   ]
+  },
+  "mco": {
+   "file": "res://src/mco/KBS_Ready_Idle_001.fbx",
+   "clip": "KBS_Ready_Idle_001",
+   "want": [
+    0,
+    0.7,
+    0.7
+   ]
+  },
+  "kev": {
+   "file": "res://src/kev/HumanM_CombatIdle1H01.fbx",
+   "clip": "HumanM_CombatIdle1H01",
+   "want": [
+    0,
+    0.7,
+    0.7
+   ]
+  }
+ },
+ "jobs": [
+  {
+   "file": "res://src/q/UAL1_Standard.glb",
+   "map": "q",
+   "only": [
+    "Sword_Attack",
+    "Sword_Idle",
+    "Roll",
+    "Hit_Chest",
+    "Hit_Head",
+    "Walk_Loop",
+    "Jog_Fwd_Loop",
+    "Sprint_Loop",
+    "Idle_Loop",
+    "Death01"
+   ]
+  },
+  {
+   "file": "res://src/q/UAL2_Standard.glb",
+   "map": "q",
+   "only": [
+    "Sword_Block",
+    "Sword_Dash",
+    "Sword_Heavy_Combo",
+    "Sword_Regular_A",
+    "Sword_Regular_B",
+    "Sword_Regular_C",
+    "Sword_Regular_Combo",
+    "Hit_Knockback",
+    "Sword_Regular_A_Rec",
+    "Sword_Regular_B_Rec",
+    "Sword_Regular_C_Rec"
+   ]
+  },
+  {
+   "file": "res://src/mco/KBS_Ready_Idle_001.fbx",
+   "map": "mco"
+  },
+  {
+   "file": "res://src/mco/KBS_Run_F_001_IP.fbx",
+   "map": "mco"
+  },
+  {
+   "file": "res://src/mco/KBS_Sword_ATK_Combo_01_001_IP.fbx",
+   "map": "mco"
+  },
+  {
+   "file": "res://src/mco/KBS_Walk_F_001_IP.fbx",
+   "map": "mco"
+  },
+  {
+   "file": "res://src/kev/HumanF_Attack1H01_R.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_Attack2H01.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_CombatDamage01.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_CombatIdle1H01.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_Run01_Forward.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_StrafeRun01_BackwardLeft.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_StrafeRun01_BackwardRight.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_StrafeRun01_ForwardLeft.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_StrafeRun01_ForwardRight.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_StrafeRun01_Left.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_StrafeRun01_Right.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_Attack1H01_R.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_Attack2H01.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_CombatDamage01.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_CombatIdle1H01.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_Run01_Forward.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_StrafeRun01_BackwardLeft.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_StrafeRun01_BackwardRight.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_StrafeRun01_ForwardLeft.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_StrafeRun01_ForwardRight.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_StrafeRun01_Left.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_StrafeRun01_Right.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanF_Run01_Backward.fbx",
+   "map": "kev"
+  },
+  {
+   "file": "res://src/kev/HumanM_Run01_Backward.fbx",
+   "map": "kev"
+  }
+ ]
+}

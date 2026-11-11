@@ -6,10 +6,10 @@
     {
      "name": "h1",
      "anim": [
-      "Triple_Combo_Attack",
-      0.42,
-      0.77,
-      1.1
+      "Sword_Regular_Combo",
+      0.02,
+      0.23,
+      0.48
      ],
      "windup": 0.17,
      "active": 0.12,
@@ -40,10 +40,10 @@
     {
      "name": "h2",
      "anim": [
-      "Triple_Combo_Attack",
-      1.15,
-      1.53,
-      1.85
+      "Sword_Regular_Combo",
+      0.48,
+      0.7,
+      1
      ],
      "windup": 0.17,
      "active": 0.12,
@@ -74,10 +74,10 @@
     {
      "name": "h3",
      "anim": [
-      "Triple_Combo_Attack",
-      1.85,
-      2.23,
-      2.9
+      "Sword_Regular_Combo",
+      1.05,
+      1.53,
+      2.3
      ],
      "windup": 0.24,
      "active": 0.12,
@@ -110,10 +110,10 @@
     {
      "name": "v1",
      "anim": [
-      "Right_Hand_Sword_Slash",
-      0.18,
-      0.53,
-      1.1
+      "Sword_Heavy_Combo",
+      2.1,
+      2.57,
+      3.2
      ],
      "windup": 0.23,
      "active": 0.12,
@@ -144,10 +144,10 @@
     {
      "name": "v2",
      "anim": [
-      "Thrust_Slash",
-      0.36,
-      0.73,
-      1.1
+      "Sword_Heavy_Combo",
+      0.1,
+      0.4,
+      0.8
      ],
      "windup": 0.25,
      "active": 0.12,
@@ -180,10 +180,10 @@
     "HHH": {
      "name": "sweep",
      "anim": [
-      "Triple_Combo_Attack",
-      1.85,
-      2.23,
-      2.9
+      "Sword_Regular_Combo",
+      1.05,
+      1.53,
+      2.3
      ],
      "windup": 0.24,
      "active": 0.12,
@@ -320,10 +320,10 @@
      "title": "Lunge",
      "solo": true,
      "anim": [
-      "Thrust_Slash",
+      "Sword_Dash",
+      0,
       0.3,
-      0.73,
-      1.1
+      1
      ],
      "windup": 0.22,
      "active": 0.12,
@@ -595,10 +595,10 @@
     {
      "name": "h1",
      "anim": [
-      "Triple_Combo_Attack",
-      0.42,
-      0.77,
-      1.1
+      "Sword_Regular_Combo",
+      0.02,
+      0.23,
+      0.48
      ],
      "windup": 0.17,
      "active": 0.12,
@@ -629,10 +629,10 @@
     {
      "name": "h2",
      "anim": [
-      "Triple_Combo_Attack",
-      1.15,
-      1.53,
-      1.85
+      "Sword_Regular_Combo",
+      0.48,
+      0.7,
+      1
      ],
      "windup": 0.17,
      "active": 0.12,
@@ -663,10 +663,10 @@
     {
      "name": "h3",
      "anim": [
-      "Triple_Combo_Attack",
-      1.85,
-      2.23,
-      2.9
+      "Sword_Regular_Combo",
+      1.05,
+      1.53,
+      2.3
      ],
      "windup": 0.24,
      "active": 0.12,
@@ -699,10 +699,10 @@
     {
      "name": "v1",
      "anim": [
-      "Right_Hand_Sword_Slash",
-      0.18,
-      0.53,
-      1.1
+      "Sword_Heavy_Combo",
+      2.1,
+      2.57,
+      3.2
      ],
      "windup": 0.23,
      "active": 0.12,
@@ -733,10 +733,10 @@
     {
      "name": "v2",
      "anim": [
-      "Thrust_Slash",
-      0.36,
-      0.73,
-      1.1
+      "Sword_Heavy_Combo",
+      0.1,
+      0.4,
+      0.8
      ],
      "windup": 0.25,
      "active": 0.12,
@@ -769,10 +769,10 @@
     "HHH": {
      "name": "sweep",
      "anim": [
-      "Triple_Combo_Attack",
-      1.85,
-      2.23,
-      2.9
+      "Sword_Regular_Combo",
+      1.05,
+      1.53,
+      2.3
      ],
      "windup": 0.24,
      "active": 0.12,
@@ -909,10 +909,10 @@
      "title": "Lunge",
      "solo": true,
      "anim": [
-      "Thrust_Slash",
+      "Sword_Dash",
+      0,
       0.3,
-      0.73,
-      1.1
+      1
      ],
      "windup": 0.22,
      "active": 0.12,
@@ -1184,10 +1184,10 @@
     {
      "name": "h1",
      "anim": [
-      "Triple_Combo_Attack",
-      0.42,
-      0.77,
-      1.1
+      "Sword_Regular_Combo",
+      0.02,
+      0.23,
+      0.48
      ],
      "windup": 0.1955,
      "active": 0.12,
@@ -1218,10 +1218,10 @@
     {
      "name": "h2",
      "anim": [
-      "Triple_Combo_Attack",
-      1.15,
-      1.53,
-      1.85
+      "Sword_Regular_Combo",
+      0.48,
+      0.7,
+      1
      ],
      "windup": 0.1955,
      "active": 0.12,
@@ -1252,10 +1252,10 @@
     {
      "name": "h3",
      "anim": [
-      "Triple_Combo_Attack",
-      1.85,
-      2.23,
-      2.9
+      "Sword_Regular_Combo",
+      1.05,
+      1.53,
+      2.3
      ],
      "windup": 0.27599999999999997,
      "active": 0.12,
@@ -1288,10 +1288,10 @@
     {
      "name": "v1",
      "anim": [
-      "Right_Hand_Sword_Slash",
-      0.18,
-      0.53,
-      1.1
+      "Sword_Heavy_Combo",
+      2.1,
+      2.57,
+      3.2
      ],
      "windup": 0.2645,
      "active": 0.12,
@@ -1322,10 +1322,10 @@
     {
      "name": "v2",
      "anim": [
-      "Thrust_Slash",
-      0.36,
-      0.73,
-      1.1
+      "Sword_Heavy_Combo",
+      0.1,
+      0.4,
+      0.8
      ],
      "windup": 0.2875,
      "active": 0.12,
@@ -1358,10 +1358,10 @@
     "HHH": {
      "name": "sweep",
      "anim": [
-      "Triple_Combo_Attack",
-      1.85,
-      2.23,
-      2.9
+      "Sword_Regular_Combo",
+      1.05,
+      1.53,
+      2.3
      ],
      "windup": 0.27599999999999997,
      "active": 0.12,
@@ -1498,10 +1498,10 @@
      "title": "Lunge",
      "solo": true,
      "anim": [
-      "Thrust_Slash",
+      "Sword_Dash",
+      0,
       0.3,
-      0.73,
-      1.1
+      1
      ],
      "windup": 0.253,
      "active": 0.12,
@@ -2053,10 +2053,10 @@
      "title": "Lunge",
      "solo": true,
      "anim": [
-      "Thrust_Slash",
+      "Sword_Dash",
+      0,
       0.3,
-      0.73,
-      1.1
+      1
      ],
      "windup": 0.22,
      "active": 0.12,
@@ -2642,10 +2642,10 @@
      "title": "Lunge",
      "solo": true,
      "anim": [
-      "Thrust_Slash",
+      "Sword_Dash",
+      0,
       0.3,
-      0.73,
-      1.1
+      1
      ],
      "windup": 0.1936,
      "active": 0.12,

@@ -6,6 +6,8 @@ class_name Clips
 ## This turns each clip into one that drives a fighter's Skeleton3D bones instead ("Armature/Skeleton3D:Spine02").
 
 const FILES := ["res://anims/anims.glb", "res://anims/anims2.glb"]
+const EXTRA := "res://anims/extra_anims.res"
+const BLADE := Vector3(0, 0.7071, 0.7071)
 ## Clips whose hips may travel (falls); in every other clip the hips are pinned over the feet, because the rules own position.
 const FREE_ROOT := ["Dead", "Shot_and_Fall_Backward", "Shot_and_Fall_Forward"]
 const BONES := ["Hips", "Spine02", "Spine01", "Spine", "neck", "Head", "head_end", "headfront", "LeftShoulder", "LeftArm", "LeftForeArm", "LeftHand",
@@ -24,6 +26,11 @@ static func library() -> AnimationLibrary:
 			if _library.has_animation(clip_name): continue
 			_library.add_animation(clip_name, _convert(player.get_animation(clip_name), clip_name))
 		scene.free()
+	# moves from the free packs, already fitted to the fighters' skeleton by tools/godot_bake
+	if ResourceLoader.exists(EXTRA):
+		var extra: AnimationLibrary = load(EXTRA)
+		for clip_name in extra.get_animation_list():
+			if not _library.has_animation(clip_name): _library.add_animation(clip_name, extra.get_animation(clip_name))
 	return _library
 
 static func _convert(src: Animation, clip_name: String) -> Animation:
@@ -84,5 +91,6 @@ static func table() -> Dictionary:
 			var bone := str(anim.track_get_path(t)).get_slice(":", 1)
 			if anim.track_get_type(t) == Animation.TYPE_ROTATION_3D: rot[BONES.find(bone)] = t
 			else: hips = t
-		_table[str(clip_name)] = {"anim": anim, "length": anim.length, "rot": rot, "hips": hips}
+		# `blade` is the way a gripped sword leaves the fist in this clip's hand pose (it differs between animation sources)
+		_table[str(clip_name)] = {"anim": anim, "length": anim.length, "rot": rot, "hips": hips, "blade": anim.get_meta("blade", BLADE)}
 	return _table

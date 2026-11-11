@@ -9,6 +9,7 @@ const SPAWNS := [{"x": 0.0, "z": -4.5, "yaw": 0.0}, {"x": 0.0, "z": 4.5, "yaw": 
 const GROUND_SHADER := """
 shader_type spatial;
 uniform sampler2D noise_tex : repeat_enable, filter_linear_mipmap;
+uniform sampler2D dirt_tex : source_color, repeat_enable, filter_linear_mipmap_anisotropic;
 uniform float ring = 22.0;
 varying vec3 wpos;
 float height(vec2 p) {
@@ -27,11 +28,11 @@ void vertex() {
 void fragment() {
 	float n = texture(noise_tex, wpos.xz * 0.03).r;
 	float m = texture(noise_tex, wpos.xz * 0.25).r;
-	vec3 grass = mix(vec3(0.09, 0.19, 0.04), vec3(0.20, 0.32, 0.08), n);
-	vec3 dirt = mix(vec3(0.20, 0.15, 0.09), vec3(0.33, 0.26, 0.16), m);
+	vec3 grass = mix(vec3(0.055, 0.12, 0.028), vec3(0.12, 0.21, 0.055), n);
+	vec3 dirt = texture(dirt_tex, wpos.xz * 0.22).rgb * vec3(0.8, 0.72, 0.6);
 	// a worn patch of earth in the middle of the ring, where the fighting happens
 	float worn = smoothstep(6.0, 2.0, length(wpos.xz) + (n - 0.5) * 4.0);
-	ALBEDO = mix(grass, dirt, worn * 0.85) * (0.8 + m * 0.4);
+	ALBEDO = mix(grass * (0.8 + m * 0.4), dirt, worn * 0.9);
 	ROUGHNESS = 0.95;
 }
 """
@@ -59,9 +60,10 @@ void vertex() {
 	NORMAL = vec3(0.0, 1.0, 0.0);
 }
 void fragment() {
-	ALBEDO = mix(vec3(0.07, 0.16, 0.03), vec3(0.30, 0.44, 0.12), tip) * COLOR.rgb;
+	ALBEDO = mix(vec3(0.045, 0.10, 0.022), vec3(0.19, 0.30, 0.08), tip) * COLOR.rgb;
+	// lit as if every blade faced the sky, front and back alike, so the lawn reads as one soft surface instead of dark spikes
+	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
 	ROUGHNESS = 0.9;
-	BACKLIGHT = vec3(0.25, 0.3, 0.1);
 }
 """
 
@@ -97,7 +99,7 @@ func _ready() -> void:
 	var with_mips := noise_img.duplicate() as Image; with_mips.generate_mipmaps()
 	var noise := ImageTexture.create_from_image(with_mips)
 	var ground := MeshInstance3D.new(); var pm := PlaneMesh.new(); pm.size = Vector2(420, 420); pm.subdivide_width = 160; pm.subdivide_depth = 160; ground.mesh = pm
-	var gm := ShaderMaterial.new(); var gs := Shader.new(); gs.code = GROUND_SHADER; gm.shader = gs; gm.set_shader_parameter("noise_tex", noise); gm.set_shader_parameter("ring", R)
+	var gm := ShaderMaterial.new(); var gs := Shader.new(); gs.code = GROUND_SHADER; gm.shader = gs; gm.set_shader_parameter("noise_tex", noise); gm.set_shader_parameter("dirt_tex", load("res://textures/dirt_color.jpg")); gm.set_shader_parameter("ring", R)
 	ground.material_override = gm; ground.extra_cull_margin = 40.0; add_child(ground)
 	_grass()
 	_scenery()
@@ -106,22 +108,28 @@ func _sky() -> void:
 	var we := WorldEnvironment.new(); env = Environment.new()
 	var sky := Sky.new()
 	var hdr := "res://sky/sky.hdr"
+	# where the sun should stand: behind and to one side of the player at the start of a round, so fighters are lit from the front
+	var sun_dir := Basis.from_euler(Vector3(deg_to_rad(-48), deg_to_rad(145), 0)) * Vector3(0, 0, 1)
 	if ResourceLoader.exists(hdr):
-		# a real photographed sky, if one has been added to the project
+		# a photographed sky (Poly Haven "Kloofendal 48d Partly Cloudy", CC0). Its sun sits 36 degrees round from the middle
+		# of the picture and 48 degrees up; the sky is turned so that the sun in the picture is where the light comes from.
 		var pan := PanoramaSkyMaterial.new(); pan.panorama = load(hdr); sky.sky_material = pan
+		var phi := deg_to_rad(35.9)
+		var in_photo := Vector3(sin(phi), 0, -cos(phi))
+		env.sky_rotation = Vector3(0, (atan2(sun_dir.x, sun_dir.z) - atan2(in_photo.x, in_photo.z)) * float(OS.get_environment("DUEL_SKYSIGN") if OS.get_environment("DUEL_SKYSIGN") != "" else "1"), 0)
+		env.background_energy_multiplier = 2.3
 	else:
 		var mat := ProceduralSkyMaterial.new()
 		mat.sky_top_color = Color(0.20, 0.42, 0.78); mat.sky_horizon_color = Color(0.80, 0.86, 0.90); mat.sky_curve = 0.12
 		mat.ground_bottom_color = Color(0.22, 0.30, 0.16); mat.ground_horizon_color = Color(0.70, 0.78, 0.76)
-		mat.sun_angle_max = 12.0; mat.sun_curve = 0.08
 		sky.sky_material = mat
 	env.background_mode = Environment.BG_SKY; env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY; env.ambient_light_energy = 0.9
-	env.tonemap_mode = Environment.TONE_MAPPER_ACES; env.tonemap_white = 6.0
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY; env.ambient_light_energy = 0.75
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC; env.tonemap_white = 5.0
 	env.fog_enabled = true; env.fog_light_color = Color(0.72, 0.80, 0.86); env.fog_density = 0.003; env.fog_sky_affect = 0.0
 	env.glow_enabled = true; env.glow_intensity = 0.5; env.glow_bloom = 0.05; env.glow_hdr_threshold = 1.1
 	we.environment = env; add_child(we)
-	sun = DirectionalLight3D.new(); sun.rotation_degrees = Vector3(-46, 145, 0); sun.light_energy = 1.25; sun.light_color = Color(1.0, 0.93, 0.80)
+	sun = DirectionalLight3D.new(); sun.rotation_degrees = Vector3(-48, 145, 0); sun.light_energy = 1.25; sun.light_color = Color(1.0, 0.93, 0.80)
 	sun.shadow_enabled = true; sun.directional_shadow_max_distance = 45.0; sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS; sun.shadow_blur = 1.5
 	add_child(sun)
 
@@ -140,17 +148,17 @@ func _grass() -> void:
 	var blade := st.commit()
 	grass_mat = ShaderMaterial.new(); var sh := Shader.new(); sh.code = GRASS_SHADER; grass_mat.shader = sh
 	var rng := RandomNumberGenerator.new(); rng.seed = 7
-	var count := 150000
+	var count := 110000
 	var mm := MultiMesh.new(); mm.transform_format = MultiMesh.TRANSFORM_3D; mm.use_colors = true; mm.mesh = blade; mm.instance_count = count
 	for i in count:
 		# thick near the ring, thinning out toward the hills; sparse on the worn earth in the middle
 		var r := sqrt(rng.randf()) * (R + 7.0)
 		if r < 5.0 and rng.randf() > r / 5.0 * 0.6: r = 5.0 + rng.randf() * (R + 2.0)
 		var a := rng.randf() * TAU
-		var h := 0.14 + rng.randf() * 0.22
+		var h := 0.09 + rng.randf() * 0.17
 		var b := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(1.0 + rng.randf(), h, 1.0))
 		mm.set_instance_transform(i, Transform3D(b, Vector3(sin(a) * r, height_at(sin(a) * r, cos(a) * r), cos(a) * r)))
-		var tint := 0.75 + rng.randf() * 0.5
+		var tint := 0.8 + rng.randf() * 0.35
 		mm.set_instance_color(i, Color(tint, tint * (0.95 + rng.randf() * 0.1), tint * 0.9))
 	grass = mm
 	var inst := MultiMeshInstance3D.new(); inst.multimesh = mm; inst.material_override = grass_mat
@@ -203,6 +211,6 @@ func set_fighters(a: Vector3, b: Vector3) -> void:
 
 ## "Low" is for phones that struggle: a third of the grass, no shadows, and the 3D picture drawn a little smaller.
 func set_quality(low: bool) -> void:
-	grass.visible_instance_count = 50000 if low else -1
+	grass.visible_instance_count = 35000 if low else -1
 	sun.shadow_enabled = not low
 	get_viewport().scaling_3d_scale = 0.7 if low else 1.0

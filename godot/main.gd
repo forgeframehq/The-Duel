@@ -2,7 +2,7 @@ extends Node3D
 ## The Duel, Godot edition. This script runs the whole game: the menu, a match, the camera, sounds and effects.
 ## The rules themselves are in scripts/sim.gd; this only feeds them the player's thumbs and shows what they decide.
 
-const VERSION := "0.3"
+const VERSION := "0.4"
 const CAM := {"dist": 3.5, "side": 1.0, "height": 1.4, "pitch": 0.26, "fov": 54.0}
 
 var arena: Arena
@@ -51,7 +51,32 @@ func _ready() -> void:
 	_build_menu(layer)
 	_build_result(layer)
 	_show_menu()
-	if auto or OS.get_environment("DUEL_START") != "": _start_match()
+	if OS.get_environment("DUEL_STRIP") != "": _strip(OS.get_environment("DUEL_STRIP"))
+	elif auto or OS.get_environment("DUEL_START") != "": _start_match()
+
+## Test tool: DUEL_STRIP="Clip_A,Clip_B" draws each clip as a row of eight moments, to judge a move without seeing it play.
+func _strip(names: String) -> void:
+	mode = "strip"; menu.visible = false
+	if preview: preview.queue_free(); preview = null
+	var rows := names.split(",")
+	var n := 6
+	for r in rows.size():
+		var part := rows[r].split("@")       # "Clip@0.5-1.2" shows only that stretch of the clip
+		rows[r] = part[0]
+		var clip: Dictionary = Clips.table()[rows[r]]
+		var from := 0.0
+		var to: float = clip.length
+		if part.size() > 1:
+			from = float(part[1].split("-")[0]); to = float(part[1].split("-")[1])
+		for i in n:
+			var v := FighterView.new().setup(roster[pick]); add_child(v)
+			v.position = Vector3(-(i - (n - 1) / 2.0) * 1.9, 0, r * -4.0); v.rotation.y = PI + float(OS.get_environment("DUEL_TURN") if OS.get_environment("DUEL_TURN") != "" else "0.6")
+			v.weights = {rows[r]: 1.0}; v.times = {rows[r]: from + (to - from) * (i + 0.5) / n}; v._apply()
+	cam.fov = 30.0; cam.position = Vector3(0, 1.5 + rows.size() * 0.9, -8.5 - rows.size() * 2.6); cam.look_at(Vector3(0, 0.95, -(rows.size() - 1) * 2.0))
+	arena.grass.visible_instance_count = 0
+	if OS.get_environment("DUEL_SUN") != "":      # look toward the sun, to check the sky photo is turned to match the light
+		var d: Vector3 = arena.sun.global_transform.basis.z
+		cam.fov = 80.0; cam.position = Vector3(0, 1.5, 0); cam.look_at(cam.position + Vector3(d.x, 0.45, d.z))
 
 # ---------------------------------------------------------------- sound
 
@@ -231,7 +256,7 @@ func _process(dt: float) -> void:
 		cam.fov = 36.0
 		cam.position = Vector3(-sin(a) * 4.6 - 0.7, 1.25, -cos(a) * 4.6)
 		cam.look_at(Vector3(-0.7, 1.0, 0))
-	else:
+	elif mode != "strip":
 		_run_match(dt)
 	# test runs: save a picture at each of the moments listed in DUEL_SHOT_AT ("3,5,8"), then stop
 	if shot_path != "":

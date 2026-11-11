@@ -29,6 +29,14 @@ var dropped: Node3D
 var aura: MeshInstance3D
 var tilt: Node3D
 var glow_light: OmniLight3D
+var set_kind := "HumanM_"     # which body the movement clips were made for
+var stride := 0.0               # where in the step cycle the legs are, 0 to 1; shared by every movement clip so feet stay in time
+const STANCE := "KBS_Ready_Idle_001"
+const WALK := "KBS_Walk_F_001_IP"
+## movement clips by direction of travel, every 45 degrees from straight ahead round to the left
+const DIRS := ["Run01_Forward", "StrafeRun01_ForwardLeft", "StrafeRun01_Left", "StrafeRun01_BackwardLeft", "Run01_Backward", "StrafeRun01_BackwardRight", "StrafeRun01_Right", "StrafeRun01_ForwardRight"]
+const RUN_SPEED := 4.0          # metres a second the run clips cover; the legs are played faster or slower to match the ground
+const WALK_SPEED := 1.6
 
 func setup(fighter_def: Dictionary) -> FighterView:
 	def = fighter_def
@@ -55,6 +63,7 @@ func setup(fighter_def: Dictionary) -> FighterView:
 	var holder := Node3D.new(); hand.add_child(holder)
 	holder.scale = Vector3.ONE * 100.0
 	held = _build_weapon(def.weapon); held.rotation.x = PI / 4; holder.add_child(held)
+	set_kind = "HumanF_" if def.id == "wuixi" else "HumanM_"
 	# A second copy that lies on the ground while the fighter is disarmed.
 	dropped = Node3D.new(); dropped.visible = false; dropped.top_level = true; add_child(dropped)
 	var spare := _build_weapon(def.weapon); spare.rotation = Vector3(0, 0.6, PI / 2); spare.position.y = 0.07; dropped.add_child(spare)
@@ -204,9 +213,9 @@ func _pose(f: Dictionary, dt: float) -> void:
 					_show(want, "Roll_Dodge", 0.32 + min(1.0, f.t / 0.55) * 1.3); fade = 30.0
 			"stagger":
 				# Two different flinches, picked each time a new hit lands, so repeated hits do not look identical.
-				if last_state != "stagger" or f.t < last_t: flinch = "Hit_Reaction_1" if randf() < 0.5 else "Hit_Reaction_to_Waist"
+				if last_state != "stagger" or f.t < last_t: flinch = ["Hit_Reaction_1", "Hit_Reaction_to_Waist", "Hit_Chest", "Hit_Head"].pick_random()
 				var clip: String = "Hit_Reaction" if f.parried else flinch
-				var length: float = 1.3 if f.parried else (0.85 if clip == "Hit_Reaction_1" else 1.2)
+				var length: float = 1.3 if f.parried else (0.85 if clip == "Hit_Reaction_1" else (1.2 if clip == "Hit_Reaction_to_Waist" else clips[clip].length))
 				_show(want, clip, min(1.0, f.t / f.staggerDur) * length); fade = 25.0
 			"dead":
 				if f.floored: _show(want, "Stand_Up1", 1.6)      # killed while already on the ground: stays there
@@ -215,17 +224,24 @@ func _pose(f: Dictionary, dt: float) -> void:
 				else:
 					_show(want, "Shot_and_Fall_Backward", min(clips["Shot_and_Fall_Backward"].length - 0.05, 0.7 + f.t * 1.5)); fade = 14.0
 			_:
-				# Standing guard, a fighting walk and a run, blended by how fast the fighter is moving.
-				var stand: float = max(0.0, 1 - speed / 1.1)
-				var run_w: float = clampf((speed - 2.8) / 1.6, 0, 1)
-				var walk: float = max(0.0, 1 - stand - run_w)
-				var backing: bool = fwd < -0.4 * speed
-				_loop(want, "Combat_Stance", stand, 1.0, dt)
-				# Backing away has a walk of its own, sword still up, rather than the forward walk played in reverse.
-				if backing: _loop(want, "Walk_Backward_with_Sword", walk + run_w, clampf(speed / 1.5, 0.7, 2.2), dt)
-				else:
-					_loop(want, "Walk_Fight_Forward", walk, clampf(speed / 1.7, 0.6, 1.8), dt)
-					_loop(want, "Run_02", run_w, clampf(speed / 4.6, 0.55, 1.6), dt)
+				# Standing ready, a walk and an eight-way run, chosen by how fast and which way the fighter is travelling.
+				# The legs are played at the pace that matches the ground, so the feet grip instead of gliding.
+				var left: float = f.vx * cos(f.yaw) - f.vz * sin(f.yaw)
+				var stand: float = clampf(1 - speed / 0.9, 0, 1)
+				var ahead: float = clampf(fwd / max(speed, 0.01), 0, 1)
+				var walk: float = (1 - stand) * clampf((2.6 - speed) / 1.0, 0, 1) * ahead      # only walking forward has a walk of its own
+				var run: float = 1 - stand - walk
+				_loop(want, STANCE, stand, 1.0, dt)
+				var rate: float = clampf(speed / RUN_SPEED, 0.55, 1.5) / 0.6 if run > walk else clampf(speed / WALK_SPEED, 0.6, 1.6) / clips[WALK].length
+				stride = fposmod(stride + dt * rate, 1.0)
+				if walk > 0: _show(want, WALK, stride * clips[WALK].length, walk)
+				if run > 0:
+					var a: float = fposmod(atan2(left, fwd), TAU) / (TAU / 8)
+					var i := int(a) % 8
+					var k2: float = a - int(a)
+					for pair in [[i, 1 - k2], [(i + 1) % 8, k2]]:
+						var clip: String = set_kind + DIRS[pair[0]]
+						if pair[1] > 0: _show(want, clip, stride * clips[clip].length, want.get(clip, 0.0) + run * pair[1])
 	last_state = f.state; last_t = f.t
 	var k: float = min(1.0, fade * dt)
 	for clip in want:
@@ -254,6 +270,11 @@ func _apply() -> void:
 			total += w
 			q = r if total == w else q.slerp(r, w / total)
 		if total > 0.0: skeleton.set_bone_pose_rotation(bone, q)
+	# the sword sits in the fist the way the showing clips expect
+	var blade := Vector3.ZERO
+	for clip in names: blade += clips[clip].blade * weights[clip]
+	if blade.length() > 0.01:
+		held.basis = Basis(Quaternion(Clips.BLADE, blade.normalized())) * Basis(Vector3.RIGHT, PI / 4)
 	# the hips are the only bone that also moves (bobbing, crouching, falling)
 	var hips := bone_ids[0]
 	var p := Vector3.ZERO
