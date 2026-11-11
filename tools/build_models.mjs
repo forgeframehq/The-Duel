@@ -1,5 +1,7 @@
 // Shrinks the rigged Meshy characters from the rts-game `models` branch for phones, and packs
-// the motion clips into one small library. Usage: node build_models.mjs <source dir> <out dir>
+// the motion clips into one small library.
+//   node build_models.mjs <source dir> <out dir>              all original fighters plus the motion library
+//   node build_models.mjs <source dir> <out dir> <id> [...]   only the named fighters (<id>_rig.glb), e.g. new Meshy ones
 // Needs: @gltf-transform/core, /extensions, /functions, sharp, meshoptimizer.
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
@@ -8,11 +10,11 @@ import { MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 import fs from 'fs';
 
-const [src, out] = process.argv.slice(2);
+const [src, out, ...only] = process.argv.slice(2);
 await MeshoptEncoder.ready; await MeshoptSimplifier.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder });
 
-const CHARACTERS = ['franks_knight', 'byzantines_knight', 'chinese_knight', 'franks_militia', 'byzantines_spearman', 'franks_king', 'chinese_militia', 'chinese_spearman'];
+const CHARACTERS = only.length ? only : ['franks_knight', 'byzantines_knight', 'chinese_knight', 'franks_militia', 'byzantines_spearman', 'franks_king', 'chinese_militia', 'chinese_spearman'];
 for (const name of CHARACTERS) {
   const doc = await io.read(`${src}/${name}_rig.glb`);
   for (const a of doc.getRoot().listAnimations()) a.dispose();
@@ -25,6 +27,8 @@ for (const name of CHARACTERS) {
   let tris = 0; for (const m of doc.getRoot().listMeshes()) for (const p of m.listPrimitives()) tris += p.getIndices().getCount() / 3;
   console.log(name, (fs.statSync(`${out}/${name}.glb`).size / 1024 | 0) + ' KB', tris + ' tris');
 }
+
+if (only.length) process.exit(0);
 
 // One library of motion clips, skeleton only.
 const KEEP = ['Combat_Stance', 'Idle_02', 'Run_02', 'Casual_Walk', 'ForwardLeft_Run_Fight', 'Spear_Walk', 'Right_Hand_Sword_Slash', 'Double_Combo_Attack',
