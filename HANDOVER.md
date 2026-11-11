@@ -12,6 +12,13 @@ What it has: menu (pick Aurelian, Varek or Wuixi, Easy/Normal/Hard, Graphics Hig
 
 What it does not have yet: the Quaternius animations (still the Meshy clips; retargeting not started), obstacles in the arena (open ring, R 22), spear/mace fighters, the weapon tumbling when disarmed (it just appears on the ground), settings beyond Graphics, a photographed sky and ground textures (waiting for him to attach a Poly Haven 2K HDR sky and ambientCG 1K-JPG grass/dirt; `res://sky/sky.hdr` is picked up automatically if present). Not measured on a phone: frame rate with 150,000 grass blades and two 150,000-triangle fighters (Graphics: Low cuts grass to a third, turns shadows off and draws 3D at 70%).
 
+**His feedback on 0.3 (11 Nov, 17:17 to 17:19). He said "let's chat before making next build", so nothing is to be built until he says go:**
+- "The game is so much better, much more fighting animation, we need more though."
+- **Gliding:** "it looked like gliding sometimes" (feet slide: the fighter is moved by rule at one speed while the walk clip steps at another; circling reuses the forward walk).
+- **Sword:** "the swing and movement of sword was off". His menu screenshot shows Wuixi's katana pointing back and down from her hand at the hip, so the way the weapon sits in the hand in Godot is suspect: compare with build 20 before changing the moves.
+- **It ran smoothly on High** on his phone (no heat complaint). **Graphics High and Low "made no sense"** and he preferred Low: Low has a third of the grass and looks darker and calmer; High's 150,000 bright spiky blades look worse. So the grass itself needs redoing (shorter, softer, darker, less spiky, or clumps with a texture), and the setting should change cost, not the look.
+- Plan offered to him, awaiting his answers: fit the Quaternius sword and walk clips, match walk speed to foot speed, check the weapon grip, redo the grass, better sword models if he attaches free ones (Meshy has 30 credits, one model).
+
 **How it is built**
 - `godot/project.godot`: Godot 4.4.1, `gl_compatibility` renderer, landscape, 1280×576 stretched. Version in `config/version` (bump it for every APK; also `VERSION` in `main.gd`, shown on the menu).
 - `.github/workflows/godot-android.yml`: runs when the commit message contains `[godot]`. Downloads Godot and export templates, imports, exports a debug APK signed with the committed `godot/debug.keystore` (so each APK installs over the last), publishes release `godot-v<version>`. On failure the log goes to the `ci-logs` branch. A build takes about 5 minutes.
