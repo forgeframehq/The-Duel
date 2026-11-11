@@ -1,4 +1,4 @@
-# The Duel — handover (11 Nov 2026, build 19)
+# The Duel — handover (11 Nov 2026, build 20)
 
 Read this first in a new chat. It replaces the long conversation that built the game so far.
 
@@ -27,7 +27,26 @@ Read this first in a new chat. It replaces the long conversation that built the 
 
 ## 3. Where things stand
 
-**Build 19 was released on 11 Nov as an APK (v1.0.19), about an hour after build 18. He has not reported playing either yet.** Build 19 adds the third fighter and the new map, made with his Meshy key under his instruction "don't hold back on vertices, make it look absolutely beautiful like the Naraka screenshot" and "file size is completely fine, Dawn of Dynasties was 300 MB":
+**Build 20 was released on 11 Nov as an APK (v1.0.20). It is the fighting redo he asked for after playing build 18 ("we need to redo the whole fighting", with Shadow Fight as the model) plus the Naraka-style hero screen. He has not played it, or build 19, yet.**
+
+What build 20 changed (all of it tested by `tools/dev/strings.mjs`, 32 checks, which now taps the way a thumb does: 0.15 s):
+
+- **Taps are quick attacks.** The fault in builds 18 and 19 (any tap longer than 0.12 s became a blue charged strike) is fixed: a tap lands in 0.18 s, and a charge only starts if the button is still down after the hit (0.3 s).
+- **Stick direction picks the move**, as in Shadow Fight. Stick toward the rival + H = Lunge; away + H = Back-step Cut; toward + V = Skyfall (leaping blow); away + V = Guard Breaker (a kick). The four strings are unchanged (Tempest, Earthsplitter, Rising Fang, Reaper's Arc).
+- **Guard button** (the old Parry button). Hold = guard: normal hits from the front are blocked and drain a guard meter (thin steel bar under stamina); empty = guard break. Press just as a blow lands = **parry**: a normal hit is deflected and the attacker left off balance (weapon stays in hand), a blue strike is deflected and disarms as before. A parry attempt has a 1.4 s cooldown, shown as a gold ring on the button. Blue strikes, specials, the kick and blows from behind go through a held guard.
+- **No blue cue on the button and no "press Parry" hint**: the blue glow on the rival is the only warning (his request).
+- **Special runs on energy**, not a clock: the ring fills from landing hits, taking hits, blocking and parrying; starts each match at 30%.
+- **A disarmed fighter can still kick.**
+- **14 new animations bought** (42 credits, 30 left) and fitted: Lunge, Back-step Cut, Skyfall, kick, new Earthsplitter and Reaper's Arc, the guard pose, a back hop for dodging straight back, a proper backward walk, and the katana's own cuts. They live in `assets/models/anims2.glb` (packed by `tools/build_anims.mjs`). That file is the only copy: the raw downloads were 25 MB each (each carries Wuixi's whole body) and were not kept. Unused so far: Charged_Axe_Chop, Leg_Sweep, Stand_Dodge.
+- **Hero select screen** in the Naraka layout: portrait tiles on the left (with empty places for fighters to come), the chosen fighter standing in the arena in 3D in the middle, name, story, weapon, special and stats on the right, rival skill and arena along the bottom. Picking an arena changes the place behind the fighter.
+- Rival AI: guards (sometimes keeps its guard up while circling), parries with timing on Normal and Hard, kicks a guard down, lunges and leaps to close distance, hesitates between presses on Easy and Normal.
+- Meadow: fighters now start on the path. Buttons a little darker so they read against bright grass.
+
+Not done in build 20, and he should be told plainly: **feet still slide** (attacks move the fighter by rule, not by the animation's own steps); hair and cloth do not flow; Aurelian and Varek are still at half detail. Difficulty ranking is weaker than before: Hard beats Easy 19 to 1, Normal beats Easy 16 to 4, but Hard against Normal is about even, so Hard needs tuning.
+
+**Engine:** he asked "wanna use Godot or something?" (13:31). Claude advised staying on the current engine for now: the roughness came from rules, missing animations and sliding feet, none of which an engine fixes; a move to Godot means rebuilding everything; fighters, clips, models and the design carry over later. Godot becomes worth it for online multiplayer, flowing hair and cloth, or if the meadow runs badly on his phone even on Medium. He has not replied on this.
+
+**Build 19 (v1.0.19)** came an hour after build 18. Build 19 adds the third fighter and the new map, made with his Meshy key under his instruction "don't hold back on vertices, make it look absolutely beautiful like the Naraka screenshot" and "file size is completely fine, Dawn of Dynasties was 300 MB":
 
 - **Wuixi the Crimson Fang** (The Red Lotus; title and faction are Claude's suggestion, not yet confirmed by him). Meshy image-to-3D from `tools/fighters/wuixi.png` at 150,000 triangles, rigged on the shared skeleton, shipped unshrunk with 2048 px textures (`assets/models/wuixi.glb`, 5 MB). Fast, light armour. Weapon **katana** (built in code in `fighterView.js`: curved blade, gold guard, crimson-wrapped grip, tassel; quicker and slightly weaker than the sword). Special **Crimson Flash** (dash-cut, 10 s cooldown).
 - **Whispering Meadow**, the new default arena (`src/meadow.js`): rolling ground with a winding dirt path, about 46,000 tufts of grass that sway in the wind and bend away from the fighters, wildflowers, pebbles, Meshy trees, mossy boulders, a pavilion and farmhouses, three rows of misty hills, blue sky with drifting clouds, soft daylight. Boulders and two trees are cover. Each arena now carries its own light (`look`), including sky reflections on metal.
@@ -56,7 +75,7 @@ What build 18 changed:
 
 Tested: `tools/dev/strings.mjs` (24 rule checks pass), `tools/dev/simtest.mjs` (difficulties rank correctly), a headless fight with screenshots, and the visual check (clean). **Not tested on a phone.** No new animations were bought (no Meshy key in this chat), so the finishers reuse clips: Earthsplitter uses the ground slam, Reaper's Arc the hammer swing.
 
-**First thing to do in the new chat:** ask how build 18 plays on his phone from the APK: do the two buttons and strings feel right, can he land a parry now, is the music level right, is it smoother and cooler.
+**First thing to do in the new chat:** ask how build 20 plays on his phone from the APK: do taps feel quick, do the stick-direction moves and the Guard button make sense, does the fighting feel closer to Shadow Fight, does the meadow run smoothly on High, and is the hero screen what he pictured.
 
 Also open with him: he asked (11 Nov) whether the game should have **metal-inspired theme, menu and intro music**. Claude's view given: yes for battle and intro, with the menu theme a slower, heavier version of the same riff. He makes the music in Suno; prompts to be written when he says go.
 
@@ -64,7 +83,7 @@ Also open with him: he asked (11 Nov) whether the game should have **metal-inspi
 
 - Best of 3 rounds (first to 2), 99-second rounds, rival skill Easy / Normal / Hard.
 - Triangle: normal attacks beat parry; charged (blue, armoured) beats normal attacks; parry beats charged and disarms.
-- Buttons: Horizontal, Vertical, Dodge, Parry, Special, Lock. Strings and rules as listed in section 3.
+- Buttons: Horizontal, Vertical, Dodge, Guard, Special, Lock. Strings, stick-direction moves, guard and parry as listed in section 3 (build 20).
 - Also: stamina and "winded", whiff recovery, weapon clash, backstab ×1.5, dodge roll with invulnerability (hold Dodge = sprint), lock-on, pillars as cover.
 - Fighters supply the body (health, armour, speed, stamina); weapons supply the moves. Weapons: Sword, Divine sword, Katana, Mace, Spear (all reuse the sword animations).
 - Roster (`src/roster.js`): **Aurelian the Sun-Crowned** (The Gilded Order, divine sword, Sunburst), **Varek the Oathbreaker** (The Fallen, sword, Oathbreaker's Rush), **Wuixi the Crimson Fang** (The Red Lotus, katana, Crimson Flash), 8 Dawn of Dynasties fighters, and "Test Dummy" (the first plate knight). Aurelian and Varek are the two launch fighters.
@@ -78,21 +97,21 @@ No build step: plain ES modules, Three.js r187 vendored in `vendor/`.
 
 | File | Role |
 |---|---|
-| `src/sim.js` | All combat rules, fixed 60 Hz tick, pure (no rendering). One command object per fighter: `{ mx, mz, faceYaw, h, v, hHold, vHold, parry, dodge, skill, sprint }`. Built this way so multiplayer can be added later. |
-| `src/weapons.js` | Per-weapon moves: `h`, `v`, `strings` (finishers by button order), `launch`, `focusH`, `focusV`, `riposte`. `STRINGS` is the move list. `anim` is `[clip, start, impact, end]`. |
-| `src/skills.js` | Specials: `sunburst`, `rush`, `wind`. |
+| `src/sim.js` | All combat rules, fixed 60 Hz tick, pure (no rendering). One command object per fighter: `{ mx, mz, faceYaw, h, v, hHold, vHold, guard, plain, dodge, skill, sprint }` (`plain` = guard with no parry attempt; only the AI uses it). Built this way so multiplayer can be added later. |
+| `src/weapons.js` | Per-weapon moves: `h`, `v`, `strings` (finishers by button order), `dir` (stick-direction moves), `launch`, `focusH`, `focusV`, `riposte`. `STRINGS` is the move list. `anim` is `[clip, start, impact, end]`. |
+| `src/skills.js` | Specials: `sunburst`, `rush`, `flash`, `wind`. Fired with a full energy bar. |
 | `src/ai.js` | Rival AI; outputs the same command object. Difficulty table at top. |
 | `src/input.js` | Touch joystick, camera drag, Attack button gestures, keyboard (WASD, J horizontal, K vertical, L parry, I special, Space dodge, Q lock, C camera, Esc pause). |
 | `src/fighterView.js` | Model, weapon mesh on `RightHand`, animation per state, team cloth recolour. |
-| `src/models.js` | Loads characters and the shared animation library; pins hips. |
+| `src/models.js` | Loads characters and the two animation libraries (`anims.glb`, `anims2.glb`); pins hips. |
 | `src/main.js` | Render loop, cameras, HUD, effects, music hooks, `BUILD`, `window.__duel` debug object. |
 | `src/meadow.js`, `src/courtyard.js`, `src/arena.js` | Arenas. Each returns `{ group, obstacles, spawns, R, update, look }`. |
 | `src/quality.js` | Graphics levels. |
-| `src/select.js`, `src/roster.js` | Character select and fighter data. |
+| `src/select.js`, `src/roster.js` | Hero select screen (the 3D fighter on it is drawn by `main.js`: `showPreview`) and fighter data. |
 | `src/audio.js`, `src/fx.js` | Sound/music and particles/trails/shake. |
 | `android/`, `.github/workflows/android.yml` | Capacitor 7 project; workflow builds an APK on `[release]` in a commit message or a `v*` tag. |
 | `tools/` | `visual_check.mjs` (section 7), `new_fighter.py`, `new_prop.py` (Meshy pipeline), `build_models.mjs`, `build_props.mjs`, `portrait.html`, `viewer.html`. |
-| `tools/dev/` | `strings.mjs` (rule checks), `simtest.mjs` (rival against rival), `shots.mjs` (pictures of a real fight; `bare` makes the arena pictures). These three run as they are. `juggle.mjs`, `g10.mjs`, `portraits.mjs`, `run.sh` are older, use the old controls and old paths, and need adjusting. `tools/dev/fonts/` holds the game's fonts for the test browser. |
+| `tools/dev/` | `strings.mjs` (rule checks), `simtest.mjs` (rival against rival), `shots.mjs` (pictures of the hero screen and a real fight; `bare` makes the arena pictures; `CARD=2` picks the third fighter), `clips.mjs` (film strips of animation clips with the moments the hand moves fastest, for timing moves), `look.mjs`, `portraits.mjs`. These run as they are. `juggle.mjs`, `g10.mjs`, `portraits.mjs`, `run.sh` are older, use the old controls and old paths, and need adjusting. `tools/dev/fonts/` holds the game's fonts for the test browser. |
 
 ## 6. Character and animation pipeline (Meshy)
 
@@ -102,7 +121,7 @@ No build step: plain ES modules, Three.js r187 vendored in `vendor/`.
 - Animations: `POST /openapi/v1/animations {rig_task_id, action_ids}`, 3 credits each; catalogue at https://api.meshy.ai/web/public/animations/resources.
 - `tools/build_models.mjs` shrinks models (simplify, WebP textures, meshopt) and with `--anims` rebuilds `assets/models/anims.glb` from the sources listed in its KEEP list.
 - **Full-size sources** (rigs and animation packs `combat3_anim.glb`, `combat4_anim.glb`, props) live on the repo's **`models` branch**. Meshy download links expire, so that branch is the only copy.
-- Credit costs: text-to-3D 20 + 10, image-to-3D 30, rig 5, animation 3, remesh (a lighter copy of a finished model) 5. **Balance: 72** after build 19 (Wuixi 35, katana 30, tree, boulders, pavilion and hut 30 each, three lighter copies 15).
+- Credit costs: text-to-3D 20 + 10, image-to-3D 30, rig 5, animation 3, remesh (a lighter copy of a finished model) 5. **Balance: 30** after build 20 (14 animations, 42 credits); it was 72 after build 19 (Wuixi 35, katana 30, tree, boulders, pavilion and hut 30 each, three lighter copies 15).
 - From build 19, new fighters are generated with `MESHY_POLY=150000` and packed with `tools/build_hd.mjs fighter` (no triangles removed). `new_prop.py` takes `PROP_STYLE` to replace the castle-stone style line. meshopt's simplifier barely reduces Meshy models (too many texture seams); for a lighter copy use Meshy's remesh (`POST /v1/remesh {input_task_id, target_polycount}`).
 
 ## 7. Testing notes
@@ -128,22 +147,13 @@ No build step: plain ES modules, Three.js r187 vendored in `vendor/`.
 - **Bug, confirmed in the code: taps turn into charged strikes.** He reported that Horizontal and Vertical "basically only did one thing... a blue circle and a heavy attack" and that there were no quick attacks. Cause: `CHARGE_AFTER = 0.12` in `sim.js`. A press still held 0.12 s into a swing becomes a charge, and a thumb tap on glass usually lasts 0.1 to 0.2 s, so most of his taps charged. The test browser never showed it because the tests press for one tick. Fix for the next build: only charge if the button is still down much later (about 0.3 s), which means the hold must be judged from the press itself, not from inside the swing's wind-up (wind-ups are only 0.22 to 0.3 s); also consider making the first hits come out faster. Add a test that holds the button for 0.15 s and expects a normal attack. Builds 18 and 19 both have this bug, so he has not really played the strings yet.
 - **The stickman game:** he said "just search stickman you will find it". A search turns up dozens (Supreme Duelist Stickman, Stick Fight: Shadow Warrior, Stickman Legends, Shadow Fight and others), so it is still not identified. Asked him to pick from names or send a screenshot.
 
-**12:53: "we need to redo the whole fighting", modelled on Shadow Fight.** The stickman game he meant is **Shadow Fight** (Nekki; 2D, silhouettes). "I know it's 2D but the fighting is too good and smooth." Also:
+**12:53 to 13:31: the fighting redo.** He named **Shadow Fight** as the model ("I know it's 2D but the fighting is too good and smooth, we need to redo the whole fighting"), asked for the blue button cue to go and for a parry timer, chose to **keep the 3D view** ("I like the 3D style of fight"), agreed to the **Guard button** instead of an automatic guard, and said "yes please make the game". All of that is build 20 (section 3). What Shadow Fight does, from guides rather than from playing it: the stick direction changes the move, standing still blocks, rolls come from the stick, moves belong to the weapon, a shadow-energy bar pays for specials, the pace is timing-first, and its smoothness comes from bespoke animation for every move (Nekki's Cascadeur tool).
 
-- **Remove the blue cue on the Parry button**: "blue was lighting up all the time". He wants the player to learn it: if the opponent is blue, you can try to parry. Keep the glow on the rival, drop the pulsing button and the "Blue glow: press Parry" toast.
-- **A parry timer**: a cooldown on Parry, shown on the button like the Special's ring, so it cannot be spammed.
-
-What Shadow Fight does (from guides, not from playing it): a joystick plus a few buttons, and **the stick direction changes which move comes out**; **standing still or backing off blocks automatically**; rolls by flicking the stick; mixing high, middle and low attacks; moves belong to the weapon; a shadow-energy bar that fills as you fight and pays for special moves; a deliberate, timing-first pace ("defend first, then attack"); and animation made with Nekki's own physics-based tool (Cascadeur), which is where the smoothness comes from.
-
-**Redo plan proposed to him (not agreed, not built):**
-1. Fix the tap bug first (above), so taps are quick attacks.
-2. Stick direction plus a button picks the move (neutral, forward, back) on both attack buttons: six or more distinct moves per weapon, on top of the strings.
-3. Automatic guard: not attacking and facing the rival blocks normal hits (worn down by a guard meter). Blue charged strikes go through a guard: those must be parried or dodged. Parry becomes a timed deflect with a cooldown.
-4. Smoothness: buy proper animations for each move (about 20 clips at 3 credits each from the 72 left), let the feet travel with the attack instead of sliding (hips are pinned today), longer blends, weightier hit reactions.
-5. Special charged by fighting (an energy bar) instead of a clock.
-6. ~~Side-on camera as the default~~ **Decided 12:59: keep the 3D behind-the-fighter view.** "I like the 3D style of fight."
-
-**Guard (he asked Claude's opinion, 12:59).** Claude advised against a fully automatic guard in 3D: with lock-on you are always moving and circling, so "not attacking = blocking" would mean blocking nearly all the time, fights turn passive, and it takes a decision away from the player. Recommended instead, awaiting his answer: **one Guard button (the Parry button)**. Hold it to guard: normal hits from the front are blocked, each one draining a guard meter; when the meter empties the guard breaks and the fighter is staggered. Press it just as a hit lands for a **parry**: a normal hit is deflected and the attacker is thrown off balance, a blue strike is deflected and disarms. Blue strikes and specials go through a held guard; hits from behind go through. The cooldown ring applies to parry attempts, not to holding guard. A fully automatic guard could be offered later as an easy-mode assist.
+Still open from the redo plan:
+- **Sliding feet.** Let the feet travel with each attack (use the clips' own hip motion instead of pinning the hips and pushing the fighter by rule). This is the biggest remaining gap to Shadow Fight's smoothness.
+- Each weapon's own full move set (only the katana has its own cuts so far); use the three unused clips.
+- Tune Hard above Normal.
+- An automatic guard as an easy-mode option, if he wants it.
 
 Done in build 18: the arrows, the two-button strings, the disarming parry, see-through icon buttons, arena choice, quieter music, the frame cap, and the layout faults. Still open from that feedback:
 
@@ -153,7 +163,7 @@ Done in build 18: the arrows, the two-button strings, the disarming parry, see-t
 
 **C. Premium look and menus (his requests, 11 Nov)**
 
-13. **Hero select like Naraka's hero screen** (he sent a screenshot): small portrait tiles in a grid on the left with silhouettes for fighters still to come, the chosen fighter standing large in 3D in the middle against a moody backdrop, name and short description on the right with their special and stats. Make our own design in that layout, not a copy of their art.
+13. **Hero select like Naraka's hero screen: done in build 20.** Waiting for his reaction. Original request (he sent a screenshot): small portrait tiles in a grid on the left with silhouettes for fighters still to come, the chosen fighter standing large in 3D in the middle against a moody backdrop, name and short description on the right with their special and stats. Make our own design in that layout, not a copy of their art.
 14. **Front menu:** game modes, settings and so on on the intro screen. Flow: title → choose game mode → choose fighter → fight. Modes and settings still to be agreed with him. He also wants map choice 'like Street Fighter': build 18 has a simple two-arena picker; a proper stage-select screen belongs here.
 15. **New map in the style of the Naraka Mobile screenshot: done in build 19** (Whispering Meadow). Waiting for his reaction. Ideas not yet done: thatched huts closer in, a stream, fences, more tree kinds, grass that hides less of the fighters' legs if he finds it too tall.
 16. **Colour:** the meadow has natural greens, haze and layered hills (done). The courtyard still has its orange light and flat purple cut-out mountains; re-grade it or retire it once he has seen the meadow.

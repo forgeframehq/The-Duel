@@ -6,25 +6,27 @@ import { skillOf } from './skills.js';
 const $ = (id) => document.getElementById(id);
 const PORTRAITS = new URL('../assets/portraits/', import.meta.url).href;
 
-export function initSelect({ onGo, onBack }) {
+export function initSelect({ onGo, onBack, onShow }) {
   const picks = { you: ROSTER[0].id, rival: 'random', level: 'normal', arena: 'meadow' };
   try { const saved = localStorage.getItem('duel.arena2'); if (['meadow', 'courtyard', 'field'].includes(saved)) picks.arena = saved; } catch { /* storage unavailable */ }
   let side = 'you', shown = picks.you;
-  const roster = $('roster');
+  const roster = $('roster'), TILES = 15;
 
+  // The right-hand side says who the fighter is; the fighter stands in the arena in the middle (main.js, via onShow).
   function detail(id) {
     shown = id;
+    onShow?.(id, side);
+    $('stage-mark').textContent = id === 'random' ? '?' : '';
     if (id === 'random') {
-      $('d-portrait').style.visibility = 'hidden';
       $('d-origin').textContent = 'Rival'; $('d-name').textContent = 'Random';
       $('d-blurb').textContent = 'Face whoever steps into the ring. A different rival every match.';
-      $('d-stats').innerHTML = '';
+      $('d-kit').innerHTML = ''; $('d-stats').innerHTML = '';
       return;
     }
     const f = byId(id);
-    $('d-portrait').style.visibility = ''; $('d-portrait').src = PORTRAITS + f.id + '.webp';
-    $('d-origin').textContent = f.origin + ' · ' + weaponOf(f.weapon).label + ' · Special: ' + skillOf(f.skill).name;
+    $('d-origin').textContent = f.origin;
     $('d-name').textContent = f.name; $('d-blurb').textContent = f.blurb;
+    $('d-kit').innerHTML = `<span><b>Weapon</b>${weaponOf(f.weapon).label}</span><span><b>Special</b>${skillOf(f.skill).name}</span>`;
     $('d-stats').innerHTML = STAT_BARS.map(([label, key, lo, hi]) => {
       const pct = Math.round(Math.max(0.04, Math.min(1, (f.stats[key] - lo) / (hi - lo))) * 100);
       return `<span>${label}</span><div><i style="width:${pct}%"></i></div>`;
@@ -37,11 +39,13 @@ export function initSelect({ onGo, onBack }) {
     for (const f of list) {
       const b = document.createElement('button');
       b.className = 'card' + (f.id === 'random' ? ' random' : '') + (picks[side] === f.id ? ' on' : '');
-      b.innerHTML = (f.id === 'random' ? '<i>?</i>' : `<img src="${PORTRAITS}${f.id}.webp" alt="">`) + `<b>${f.name}</b>`
+      b.innerHTML = (f.id === 'random' ? '<i>?</i>' : `<img src="${PORTRAITS}${f.id}.webp" alt="">`) + `<b>${f.short || f.name}</b>`
         + (picks.you === f.id ? '<span class="tag you">YOU</span>' : '') + (picks.rival === f.id ? '<span class="tag rival">RIVAL</span>' : '');
       b.addEventListener('click', () => { picks[side] = f.id; render(); detail(f.id); });
       roster.appendChild(b);
     }
+    // Empty places for the fighters still to come.
+    for (let i = list.length; i < TILES; i++) { const d = document.createElement('div'); d.className = 'card locked'; d.innerHTML = '<i>?</i>'; roster.appendChild(d); }
     $('sel-title').textContent = side === 'you' ? 'Choose your fighter' : 'Choose your rival';
     document.querySelectorAll('.tabs button').forEach((t) => t.classList.toggle('on', t.dataset.side === side));
   }
@@ -53,7 +57,7 @@ export function initSelect({ onGo, onBack }) {
   }));
   const showArena = () => document.querySelectorAll('.arenas button').forEach((x) => x.classList.toggle('on', x.dataset.arena === picks.arena));
   document.querySelectorAll('.arenas button').forEach((b) => b.addEventListener('click', () => {
-    picks.arena = b.dataset.arena; showArena();
+    picks.arena = b.dataset.arena; showArena(); onShow?.(shown, side);
     try { localStorage.setItem('duel.arena2', picks.arena); } catch { /* storage unavailable */ }
   }));
   showArena();

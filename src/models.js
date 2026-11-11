@@ -20,9 +20,10 @@ let clipsPromise = null;
 
 export function loadClips() {
   if (!clipsPromise) {
-    clipsPromise = load('anims.glb').then((gltf) => {
+    // Two libraries: the original clips, and the moves bought for the build 20 fighting (tools/build_anims.mjs).
+    clipsPromise = Promise.all([load('anims.glb'), load('anims2.glb').catch(() => ({ animations: [] }))]).then((files) => {
       const clips = new Map();
-      for (const clip of gltf.animations) {
+      for (const clip of files.flatMap((g) => g.animations)) {
         const tracks = [];
         for (const t of clip.tracks) {
           const dot = t.name.lastIndexOf('.');

@@ -1,7 +1,7 @@
 // input.js — touch (and keyboard for desktop testing) turned into one command per tick.
 // Left side of the screen is a floating joystick, the right side drags the camera,
 // and the action buttons sit under the right thumb. Keyboard: WASD move, J horizontal, K vertical,
-// L parry, I special, Space dodge, Q lock, C camera.
+// L guard (tap in time to parry), I special, Space dodge, Q lock, C camera.
 
 const SPRINT_HOLD = 0.24;
 
@@ -10,7 +10,7 @@ export class Input {
     this.joyX = 0; this.joyY = 0;       // -1..1, y is "forward"
     this.lookX = 0; this.lookY = 0;     // camera drag accumulated since last read, in pixels
     this.hDown = false; this.vDown = false; this.dodgeHeld = 0; this.dodgeDown = false;
-    this.pressed = { h: false, v: false, parry: false, dodge: false, skill: false };
+    this.pressed = { h: false, v: false, dodge: false, skill: false }; this.guardDown = false;
     this.onLock = () => {}; this.onPause = () => {};
     this.keys = new Set();
     this.enabled = false;
@@ -27,7 +27,8 @@ export class Input {
     // Two attack buttons: tap for a normal attack, keep holding to charge it.
     this.button($('btn-h'), () => { this.pressed.h = true; this.hDown = true; }, () => { this.hDown = false; });
     this.button($('btn-v'), () => { this.pressed.v = true; this.vDown = true; }, () => { this.vDown = false; });
-    this.button($('btn-parry'), () => { this.pressed.parry = true; });
+    // Guard: held to block, and the instant it goes down is a parry attempt.
+    this.button($('btn-parry'), () => { this.guardDown = true; }, () => { this.guardDown = false; });
     this.button($('btn-skill'), () => { this.pressed.skill = true; });
     this.button($('btn-dodge'), () => { this.pressed.dodge = true; this.dodgeDown = true; this.dodgeHeld = 0; }, () => { this.dodgeDown = false; });
     this.button($('btn-lock'), () => this.onLock());
@@ -39,7 +40,6 @@ export class Input {
       this.keys.add(k);
       if (k === 'KeyJ') this.pressed.h = true;
       if (k === 'KeyK') this.pressed.v = true;
-      if (k === 'KeyL') this.pressed.parry = true;
       if (k === 'KeyI') this.pressed.skill = true;
       if (k === 'Space') { this.pressed.dodge = true; this.dodgeDown = true; this.dodgeHeld = 0; e.preventDefault(); }
       if (k === 'KeyQ') this.onLock();
@@ -100,7 +100,7 @@ export class Input {
   }
 
   reset() {
-    this.hDown = false; this.vDown = false; this.dodgeDown = false; this.dodgeHeld = 0;
+    this.hDown = false; this.vDown = false; this.guardDown = false; this.dodgeDown = false; this.dodgeHeld = 0;
     for (const key in this.pressed) this.pressed[key] = false;
     this.lookX = this.lookY = 0;
   }
@@ -122,7 +122,7 @@ export class Input {
     const s = Math.sin(camYaw), c = Math.cos(camYaw);
     const cmd = {
       mx: s * jy - c * jx, mz: c * jy + s * jx, faceYaw,
-      h: this.pressed.h, v: this.pressed.v, parry: this.pressed.parry, dodge: this.pressed.dodge, skill: this.pressed.skill,
+      h: this.pressed.h, v: this.pressed.v, guard: this.guardDown || k.has('KeyL'), dodge: this.pressed.dodge, skill: this.pressed.skill,
       hHold: this.hDown || k.has('KeyJ'), vHold: this.vDown || k.has('KeyK'),
       sprint: this.dodgeDown && this.dodgeHeld > SPRINT_HOLD,
     };

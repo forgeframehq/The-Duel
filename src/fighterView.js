@@ -206,8 +206,8 @@ export class FighterView {
       this.actions[name] = a; this.weights[name] = 0;
     };
     const sub = (clip, tag, keep) => new THREE.AnimationClip(clip.name + tag, clip.duration, clip.tracks.filter((t) => keep(t.name.slice(0, t.name.lastIndexOf('.')))));
-    const need = new Set(['Combat_Stance', 'Run_02', 'Hit_Reaction_1', 'Hit_Reaction', 'Shot_and_Fall_Backward', 'Sword_Parry', 'Walk_Fight_Forward', 'Roll_Dodge', 'Hit_Reaction_to_Waist', 'Knock_Down', 'BeHit_FlyUp', 'Stand_Up1', 'victory', ...clipsUsed]);
-    for (const name of need) add(name, clips.get(name));
+    const need = new Set(['Combat_Stance', 'Run_02', 'Hit_Reaction_1', 'Hit_Reaction', 'Shot_and_Fall_Backward', 'Sword_Parry', 'Walk_Fight_Forward', 'Roll_Dodge', 'Hit_Reaction_to_Waist', 'Knock_Down', 'BeHit_FlyUp', 'Stand_Up1', 'victory', 'Sword_Parry_Backward', 'Back_Jump', 'Walk_Backward_with_Sword', ...clipsUsed]);
+    for (const name of need) if (clips.get(name)) add(name, clips.get(name)); else console.warn('missing clip', name);
     this.started = false; this.fallDur = clips.get('Shot_and_Fall_Backward').duration;
   }
 
@@ -223,7 +223,11 @@ export class FighterView {
     // Standing guard, a fighting walk and a run, blended by how fast the fighter is moving.
     const loco = () => {
       const stand = Math.max(0, 1 - speed / 1.1), runW = Math.max(0, Math.min(1, (speed - 2.8) / 1.6)), walk = Math.max(0, 1 - stand - runW);
-      want.Combat_Stance = stand; want.Walk_Fight_Forward = walk; want.Run_02 = runW;
+      const backing = fwd < -0.4 * speed && A.Walk_Backward_with_Sword;
+      want.Combat_Stance = stand;
+      // Backing away has a walk of its own, sword still up, rather than the forward walk played in reverse.
+      if (backing) { want.Walk_Backward_with_Sword = walk + runW; A.Walk_Backward_with_Sword.timeScale = Math.max(0.7, Math.min(2.2, speed / 1.5)); }
+      else { want.Walk_Fight_Forward = walk; want.Run_02 = runW; }
       A.Combat_Stance.timeScale = 1; A.Run_02.timeScale = runRate;
       A.Walk_Fight_Forward.timeScale = Math.max(0.6, Math.min(1.8, speed / 1.7)) * (fwd < -0.4 * speed ? -1 : 1);
     };
@@ -244,7 +248,8 @@ export class FighterView {
       case 'attack': {
         const a = f.atk, [clip, start, hit, end] = a.anim;
         const t = f.t < a.windup ? start + (hit - start) * (f.t / a.windup) : hit + (end - hit) * Math.min(1, (f.t - a.windup) / (a.active + a.recover));
-        want[clip] = 1; A[clip].timeScale = 0; A[clip].time = t; fade = 22;
+        // Blend in a touch slower at the very start of a swing, so one move flows into the next instead of snapping.
+        want[clip] = 1; A[clip].timeScale = 0; A[clip].time = t; fade = f.t < 0.08 ? 16 : 24;
         break;
       }
       case 'charge': {
@@ -254,12 +259,18 @@ export class FighterView {
         want[clip] = 1; A[clip].timeScale = 0; A[clip].time = atk.hold - 0.3 * (1 - ease) + shake; fade = 16;
         break;
       }
-      case 'parry':
-        want.Sword_Parry = 1; A.Sword_Parry.timeScale = 0; A.Sword_Parry.time = 0.12 + Math.min(1, f.t / 0.72) * 1.05; fade = 30;
+      case 'guard': {
+        // Weapon raised across the body and held there. A blow landing on it jolts it back for a moment.
+        const jolt = f.guardRest > 1.05 ? (f.guardRest - 1.05) * 1.6 : 0;
+        want.Sword_Parry_Backward = 1; A.Sword_Parry_Backward.timeScale = 0; A.Sword_Parry_Backward.time = 0.1 + Math.min(1, f.t / 0.14) * 0.3 + jolt; fade = 34;
         break;
+      }
       case 'dodge':
-        // A roll, played across the length of the dodge. The body turns to face the way it is going (see update).
-        want.Roll_Dodge = 1; A.Roll_Dodge.timeScale = 0; A.Roll_Dodge.time = 0.32 + Math.min(1, f.t / 0.55) * 1.3; fade = 30;
+        // Dodging straight back is a hop that keeps the fighter facing the enemy; any other way is a roll,
+        // with the body turned to face the way it is going (see update).
+        this.hop = f.ddx * Math.sin(f.yaw) + f.ddz * Math.cos(f.yaw) < -0.6 && !!A.Back_Jump;
+        if (this.hop) { want.Back_Jump = 1; A.Back_Jump.timeScale = 0; A.Back_Jump.time = 0.06 + Math.min(1, f.t / 0.55) * 0.86; fade = 34; }
+        else { want.Roll_Dodge = 1; A.Roll_Dodge.timeScale = 0; A.Roll_Dodge.time = 0.32 + Math.min(1, f.t / 0.55) * 1.3; fade = 30; }
         break;
       case 'stagger': {
         // Two different flinches, picked each time a new hit lands, so repeated hits do not look identical.
@@ -294,7 +305,7 @@ export class FighterView {
     const k = Math.min(1, 28 * dt);
     r.position.x += (f.x - r.position.x) * k; r.position.z += (f.z - r.position.z) * k;
     // While rolling, the body points the way it is travelling, not at the enemy.
-    const bodyYaw = f.state === 'dodge' ? Math.atan2(f.ddx, f.ddz) : f.yaw;
+    const bodyYaw = f.state === 'dodge' && !(f.ddx * Math.sin(f.yaw) + f.ddz * Math.cos(f.yaw) < -0.6 && this.actions.Back_Jump) ? Math.atan2(f.ddx, f.ddz) : f.yaw;
     let d = bodyYaw - r.rotation.y;
     while (d > Math.PI) d -= Math.PI * 2;
     while (d < -Math.PI) d += Math.PI * 2;

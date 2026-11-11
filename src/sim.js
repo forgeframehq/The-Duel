@@ -2,10 +2,13 @@
 // The world advances in fixed ticks from one command object per fighter,
 // so the same code can later be driven by a network peer instead of the AI.
 //
-// The fight is a triangle, after Naraka: Bladepoint:
-//   normal attacks  beat a parry      (a parry does not stop them)
-//   a charged strike beats normal attacks (it cannot be interrupted by them)
-//   a parry          beats a charged strike (and leaves the attacker wide open)
+// How a fight works (build 20, after Naraka: Bladepoint and Shadow Fight):
+//   a tap is a quick attack; three in a row make a string, and the order of the buttons picks the finisher
+//   the stick held toward or away from the enemy turns the press into a different move (lunge, back-step cut, leap, kick)
+//   holding the button on after the hit winds up a blue charged strike, which normal attacks cannot stop
+//   holding Guard blocks normal attacks from the front until the guard meter runs out
+//   pressing Guard just as a blow lands is a parry: a normal attack is turned aside, a charged strike is turned aside and disarms
+//   a kick or a charged strike goes through a held guard; a special goes through everything but a dodge
 import { weaponOf, attackFor } from './weapons.js';
 import { skillOf } from './skills.js';
 
@@ -13,13 +16,16 @@ export const TICK = 1 / 60;
 export const ROUND_TIME = 99;
 export const ROUNDS_TO_WIN = 2;
 export const DODGE_TIME = 0.55;
-// Hold an attack button this long into a swing and it becomes a charge instead.
-export const CHARGE_AFTER = 0.12;
+// Keep the attack button down this long after pressing it (through the quick hit) and the fighter winds up a charge.
+// Long enough that a thumb tap on glass (0.1 to 0.2 s) is never mistaken for a hold.
+export const CHARGE_AFTER = 0.3;
 export const MIN_CHARGE = 0.3;    // a charge must be held at least this long before it can be released
 export const FULL_CHARGE = 0.9;   // held this long, the strike does its most damage
 export const MAX_CHARGE = 1.5;    // held this long, it goes off by itself
 // A parry: the moment it starts working, the moment it stops, and when the fighter can act again.
-export const PARRY = { start: 0.03, end: 0.7, total: 0.95 };
+// Guard: the first moments after raising it are the parry window. After a parry attempt the window is not
+// there again until the cooldown has passed (the guard itself still works). A tap on Guard keeps it up at least GUARD_MIN.
+export const PARRY_WINDOW = 0.24, PARRY_CD = 1.4, GUARD_MIN = 0.3, GUARD_MAX = 100;
 // A parried fighter's weapon is knocked out of their hand. It comes back when they walk over it, or by itself after this long.
 export const DISARM_TIME = 7, PICKUP_RANGE = 1.0;
 // A press made a moment too early (while reeling, rolling or recovering) is remembered this long,
@@ -29,7 +35,7 @@ export const BUFFER_TIME = 0.28, STRING_GAP = 0.75;
 export const AIR_TIME = 1.05, JUGGLE_MAX = 3, DOWN_TIME = 0.7, GETUP_TIME = 0.7, AIR_HEIGHT = 1.5;
 const RADIUS = 0.48;
 
-export const EMPTY_CMD = Object.freeze({ mx: 0, mz: 0, faceYaw: null, h: false, v: false, hHold: false, vHold: false, parry: false, dodge: false, skill: false, sprint: false });
+export const EMPTY_CMD = Object.freeze({ mx: 0, mz: 0, faceYaw: null, h: false, v: false, hHold: false, vHold: false, guard: false, plain: false, dodge: false, skill: false, sprint: false });
 
 // Upgrade hook for the progression phase: everything a character build can change lives here.
 export function defaultStats() {
@@ -50,11 +56,12 @@ function turnToward(cur, target, maxStep) {
 const FRESH = () => ({
   state: 'idle', t: 0, atk: null, btn: null, seq: '', seqT: 0, bufBtn: null, bufT: 0, hitDone: false, swung: false, queue: '',
   disarmed: false, disarmT: 0, dropX: 0, dropZ: 0, groundHit: false, floored: false,
-  charge: null, chargeMul: 1, juggle: 0, airDur: AIR_TIME, buffT: 0, skillCd: 0, staggerDur: 0, parried: false, bounced: false, connected: false, winded: 0, regenDelay: 0,
+  held: false, guardM: GUARD_MAX, guardRest: 0, parryCd: 0, parryOk: false,
+  charge: null, chargeMul: 1, juggle: 0, airDur: AIR_TIME, buffT: 0, staggerDur: 0, parried: false, bounced: false, connected: false, winded: 0, regenDelay: 0,
 });
 
 function makeFighter(id, stats) {
-  return { id, stats, weapon: weaponOf(stats.weapon), skill: skillOf(stats.skill), x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: stats.maxHp, stam: stats.maxStam, swingId: 0, ddx: 0, ddz: 0, ...FRESH() };
+  return { id, stats, weapon: weaponOf(stats.weapon), skill: skillOf(stats.skill), x: 0, z: 0, vx: 0, vz: 0, yaw: 0, hp: stats.maxHp, stam: stats.maxStam, swingId: 0, ddx: 0, ddz: 0, energy: 30, ...FRESH() };
 }
 
 export function createWorld(arena, statsA = defaultStats(), statsB = defaultStats()) {
@@ -144,12 +151,22 @@ function beginSwing(f, atk, w) {
 
 // A normal attack on the Horizontal ('H') or Vertical ('V') button. Which one comes out depends on
 // the presses before it: the third press of a string is a finisher chosen by the order of the buttons.
-function startAttack(f, btn, w) {
-  if (f.disarmed) { w.events.push({ type: 'unarmed', id: f.id }); return false; }
+// The stick held toward the enemy ('F') or away ('B') when the button is pressed picks a different move.
+function stickDir(f, cmd) {
+  const mag = Math.hypot(cmd.mx, cmd.mz);
+  if (mag < 0.55) return '';
+  const along = (cmd.mx * Math.sin(f.yaw) + cmd.mz * Math.cos(f.yaw)) / mag;
+  return along > 0.6 ? 'F' : along < -0.6 ? 'B' : '';
+}
+function startAttack(f, btn, w, cmd = EMPTY_CMD) {
+  const dir = stickDir(f, cmd), special = dir && f.weapon.dir[btn + dir];
+  // With the weapon knocked away, the only attack left is the kick.
+  if (f.disarmed && !(special && special.kick)) { w.events.push({ type: 'unarmed', id: f.id }); return false; }
   if (f.winded > 0 || f.stam <= 0) return false;
-  const seq = (f.seq.length >= 3 ? '' : f.seq) + btn, atk = attackFor(f.weapon, seq);
+  // A directional move stands alone and ends any string; otherwise the press continues the string.
+  const seq = special ? '' : (f.seq.length >= 3 ? '' : f.seq) + btn, atk = special || attackFor(f.weapon, seq);
   spend(f, atk.stam, 0.7, w);
-  f.chargeMul = 1; f.seq = seq; f.btn = btn;
+  f.chargeMul = 1; f.seq = seq; f.btn = btn; f.held = true;
   beginSwing(f, atk, w);
   w.events.push({ type: 'string', id: f.id, seq, title: atk.title || '' });
   return true;
@@ -160,23 +177,28 @@ function endString(f, w) {
   f.seqT = 0;
 }
 
-// The fighter's special. Ready again after its cooldown.
+// The fighter's special. Paid for with a full energy bar, which fills by landing hits, taking them and parrying.
 function startSkill(f, w) {
-  if (f.skillCd > 0) return false;
+  if (f.energy < 100) return false;
   const sk = f.skill;
   if (sk.atk && sk.atk.armed && f.disarmed) { w.events.push({ type: 'unarmed', id: f.id }); return false; }
-  f.skillCd = sk.cooldown;
+  f.energy = 0;
   w.events.push({ type: 'skill', id: f.id, name: sk.name, kind: sk.atk ? sk.atk.name : 'wind' });
   if (sk.atk) { f.chargeMul = 1; endString(f, w); f.parried = false; f.bounced = false; beginSwing(f, sk.atk, w); }
   else { f.stam = f.stats.maxStam; f.winded = 0; f.regenDelay = 0; f.buffT = sk.buff; }
   return true;
 }
 
-function startParry(f, w) {
-  if (f.disarmed || f.winded > 0 || f.stam <= 0) return false;
-  spend(f, 12, 0.6, w);
-  f.state = 'parry'; f.t = 0; endString(f, w);
-  w.events.push({ type: 'parrystance', id: f.id });
+function gain(f, amount) { f.energy = Math.min(100, f.energy + amount); }
+
+// Raising the guard. The first instant is a parry attempt if the parry is off cooldown.
+// (`plain` raises it with no parry attempt: the rival uses that, so it does not parry by reflex every time it blocks.)
+function startGuard(f, w, plain = false) {
+  if (f.disarmed || f.winded > 0) return false;
+  f.state = 'guard'; f.t = 0; endString(f, w); f.queue = '';
+  f.parryOk = f.parryCd <= 0 && !plain;
+  if (f.parryOk) f.parryCd = PARRY_CD;
+  w.events.push({ type: 'guardup', id: f.id, parry: f.parryOk });
   return true;
 }
 
@@ -195,7 +217,7 @@ function startDodge(f, cmd, w) {
 export function dodgeInvulnerable(f) { return f.state === 'dodge' && f.t >= 0.03 && f.t <= 0.38; }
 // While charging and while the charged strike is coming out, normal attacks cannot stop a fighter.
 export function armored(f) { return f.state === 'charge' || (f.state === 'attack' && f.atk.focus && f.t < f.atk.windup + f.atk.active); }
-export function parrying(f) { return f.state === 'parry' && f.t >= PARRY.start && f.t <= PARRY.end; }
+export function parrying(f) { return f.state === 'guard' && f.parryOk && f.t <= PARRY_WINDOW; }
 
 function face(f, cmd, rate, dt) {
   if (cmd.faceYaw != null) f.yaw = turnToward(f.yaw, cmd.faceYaw, rate * dt);
@@ -210,7 +232,10 @@ function updateFighter(f, cmd, other, w) {
   if (f.state !== 'dead') {
     if (f.winded > 0) f.winded -= dt;
     if (f.buffT > 0) f.buffT -= dt;
-    if (f.skillCd > 0) f.skillCd -= dt;
+    if (f.parryCd > 0) f.parryCd -= dt;
+    // The guard meter comes back once the fighter has gone a moment without blocking.
+    if (f.guardRest > 0) f.guardRest -= dt; else if (f.guardM < GUARD_MAX) f.guardM = Math.min(GUARD_MAX, f.guardM + 26 * dt);
+
     if (f.regenDelay > 0) f.regenDelay -= dt;
     else if (f.state === 'idle' || f.state === 'stagger') f.stam = Math.min(f.stats.maxStam, f.stam + 26 * dt);
     // Remember an attack pressed a moment too early, so it comes out as soon as the fighter is free.
@@ -230,10 +255,10 @@ function updateFighter(f, cmd, other, w) {
     case 'idle': {
       if (f.seqT > 0) { f.seqT -= dt; if (f.seqT <= 0) endString(f, w); }
       if (cmd.dodge && startDodge(f, cmd, w)) break;
-      if (cmd.parry && startParry(f, w)) break;
       if (cmd.skill && startSkill(f, w)) break;
       const press = cmd.h ? 'H' : cmd.v ? 'V' : f.bufT > 0 ? f.bufBtn : null;
-      if (press) { f.bufT = 0; if (startAttack(f, press, w)) break; }
+      if (press) { f.bufT = 0; if (startAttack(f, press, w, cmd)) break; }
+      if (cmd.guard && startGuard(f, w, cmd.plain)) break;
       let sp = f.stats.speed;
       const mag = Math.min(1, Math.hypot(cmd.mx, cmd.mz));
       if (cmd.sprint && mag > 0.5 && f.winded <= 0 && f.stam > 0) { sp *= 1.5; spend(f, 13 * dt, 0.35, w); }
@@ -253,9 +278,10 @@ function updateFighter(f, cmd, other, w) {
       // Presses made during a swing wait their turn (two at most), so a string can be tapped out quickly.
       if (cmd.h) f.queue = (f.queue + 'H').slice(0, 2);
       if (cmd.v) f.queue = (f.queue + 'V').slice(0, 2);
-      // Still holding the button early in a normal swing: wind it back into a charge.
-      // Horizontal becomes the wide charged strike, Vertical the charged slam.
-      if (!a.focus && !a.launch && !a.ender && a !== f.weapon.riposte && f.t >= CHARGE_AFTER && f.t < a.windup && (f.btn === 'H' ? cmd.hHold : cmd.vHold)) {
+      // The button kept down ever since the press, through the quick hit: wind up a charge.
+      // Horizontal becomes the wide charged strike, Vertical the charged slam. A tap never does this.
+      if (!(f.btn === 'H' ? cmd.hHold : cmd.vHold)) f.held = false;
+      if (f.held && !a.focus && !a.launch && !a.ender && !a.solo && a !== f.weapon.riposte && f.t >= Math.max(CHARGE_AFTER, a.windup + a.active)) {
         f.state = 'charge'; f.t = 0; f.charge = f.btn === 'H' ? 'h' : 'v'; f.queue = '';
         endString(f, w);
         w.events.push({ type: 'charge', id: f.id });
@@ -264,6 +290,8 @@ function updateFighter(f, cmd, other, w) {
       if (f.t < a.windup) face(f, cmd, a.focus ? 9 : 7, dt);
       const gap = Math.hypot(other.x - f.x, other.z - f.z);
       if (f.t > a.windup * (a.dash ? 0.3 : 0.55) && f.t < a.windup + a.active && gap > 1.35) { tvx = fx * a.lunge; tvz = fz * a.lunge; }
+      // A back-step move springs away from the enemy first, then comes back in with the cut.
+      if (a.back && f.t < a.windup * 0.55) { tvx = -fx * a.back; tvz = -fz * a.back; }
       accel = 18;
       if (!f.swung && f.t >= a.windup) { f.swung = true; w.events.push({ type: 'swing', id: f.id, heavy: !!a.focus }); }
       if (cmd.dodge && f.t >= a.windup + a.active + recover * 0.45 && startDodge(f, cmd, w)) break;
@@ -271,12 +299,12 @@ function updateFighter(f, cmd, other, w) {
         const q = f.queue[0], free = a.launch || a === f.weapon.riposte;
         f.state = 'idle'; f.t = 0; f.queue = f.queue.slice(1); f.seqT = STRING_GAP;
         // A string is three presses at most; a finisher, a charged strike or a special always ends one.
-        const ended = a.focus || a.ender || free || f.seq.length >= 3;
+        const ended = a.focus || a.ender || a.solo || free || f.seq.length >= 3;
         if (ended) endString(f, w);
         if (a.focus) { f.queue = ''; break; }
         // After a finisher there is a breath before the next string (an opening for the other side),
         // except after the uppercut or a counter, where the follow-up hits come straight away.
-        if (q && (!ended || free)) startAttack(f, q, w); else f.queue = '';
+        if (q && (!ended || free || a.solo)) startAttack(f, q, w, cmd); else f.queue = '';
       }
       break;
     }
@@ -297,10 +325,15 @@ function updateFighter(f, cmd, other, w) {
       }
       break;
     }
-    case 'parry': {
-      accel = 10;
-      if (cmd.faceYaw != null) f.yaw = turnToward(f.yaw, cmd.faceYaw, 5 * dt);
-      if (f.t >= PARRY.total) { f.state = 'idle'; f.t = 0; }
+    case 'guard': {
+      // Weapon up, moving slowly, facing the enemy. An attack, a dodge or a special can come straight out of it.
+      if (cmd.dodge && startDodge(f, cmd, w)) break;
+      if (cmd.skill && startSkill(f, w)) break;
+      if ((cmd.h || cmd.v) && startAttack(f, cmd.h ? 'H' : 'V', w, cmd)) break;
+      const sp = f.stats.speed * 0.42;
+      tvx = cmd.mx * sp; tvz = cmd.mz * sp;
+      face(f, cmd, 8, dt);
+      if (!cmd.guard && f.t >= GUARD_MIN) { f.state = 'idle'; f.t = 0; }
       break;
     }
     case 'dodge': {
@@ -405,17 +438,45 @@ function applyHit(a, b, atk, w) {
     return;
   }
 
-  if (atk.focus && !atk.skill && parrying(b) && off <= 1.6) {
-    // A parry beats a charged strike (not a special): the attacker's weapon is knocked out of their hand,
-    // they are thrown wide open, and the defender counters at once.
-    stagger(a, 1.2, -nx * 2, -nz * 2, true);
-    disarm(a, b, w);
-    b.stam = Math.min(b.stats.maxStam, b.stam + 25); b.regenDelay = 0; b.seq = ''; b.chargeMul = 1;
-    b.yaw = Math.atan2(-dx, -dz);
-    beginSwing(b, b.weapon.riposte, w);
-    w.events.push({ type: 'parry', id: b.id, target: a.id, x: px, z: pz });
+  const guarding = b.state === 'guard' && off <= 1.6;
+  if (guarding && !atk.skill && parrying(b)) {
+    b.stam = Math.min(b.stats.maxStam, b.stam + 20); b.regenDelay = 0; b.seq = ''; b.chargeMul = 1; b.parryCd = 0.5;
+    b.yaw = Math.atan2(-dx, -dz); gain(b, 18);
+    if (atk.focus) {
+      // Parrying a charged strike: the attacker's weapon is knocked out of their hand,
+      // they are thrown wide open, and the defender counters at once.
+      stagger(a, 1.2, -nx * 2, -nz * 2, true);
+      disarm(a, b, w);
+      beginSwing(b, b.weapon.riposte, w);
+      w.events.push({ type: 'parry', id: b.id, target: a.id, x: px, z: pz });
+    } else {
+      // Parrying a normal attack: it is turned aside and the attacker is left off balance. The weapon stays in hand,
+      // and the defender is free at once, so the next blow is theirs to choose (and counts as a riposte).
+      stagger(a, 0.8, -nx * 3, -nz * 3, true);
+      b.state = 'idle'; b.t = 0;
+      w.events.push({ type: 'deflect', id: b.id, target: a.id, x: px, z: pz });
+    }
     return;
-  } else if (atk.focus) {
+  }
+  if (guarding && !atk.focus && !atk.skill) {
+    // A held guard stops a normal attack from the front at the cost of guard meter (and a scratch of damage).
+    // A kick, or the blow that empties the meter, breaks the guard and leaves the defender reeling.
+    b.guardM -= atk.guardBreak ? GUARD_MAX : raw * 2.1; b.guardRest = 1.3;
+    if (b.guardM <= 0) {
+      b.guardM = 0; b.guardRest = 2.2;
+      const dmg = raw * (atk.guardBreak ? 1 : 0.5) * (1 - b.stats.armor);
+      b.hp = Math.max(1, b.hp - dmg);
+      stagger(b, 1.0, nx * 4, nz * 4);
+      w.events.push({ type: 'guardbreak', id: a.id, target: b.id, dmg, x: px, z: pz });
+    } else {
+      b.hp = Math.max(1, b.hp - raw * 0.1 * (1 - b.stats.armor));
+      b.vx = nx * (1.5 + atk.knock * 0.25); b.vz = nz * (1.5 + atk.knock * 0.25);
+      gain(b, 4);
+      w.events.push({ type: 'block', id: a.id, target: b.id, heavy: !!atk.heavy, x: px, z: pz });
+    }
+    return;
+  }
+  if (atk.focus) {
     // charged strikes and specials go straight through
   } else if (armored(b) && !backstab) {
     // A charged strike beats normal attacks: the blow lands for half and does not stop them.
@@ -425,12 +486,12 @@ function applyHit(a, b, atk, w) {
     b.hp += dmg; // a killing blow goes through as a normal hit below
   }
 
-  // Normal attacks beat a parry: a fighter caught in the stance takes extra.
   const riposte = b.state === 'stagger' && b.parried;
   if (riposte) b.parried = false; // only the first hit after a parry is a riposte
-  const punish = !atk.focus && b.state === 'parry';
-  const bonus = backstab || riposte ? 1.5 : punish ? 1.25 : 1;
+  const punish = false;
+  const bonus = backstab || riposte ? 1.5 : 1;
   const dmg = raw * bonus * (1 - b.stats.armor);
+  gain(a, dmg * 0.9); gain(b, dmg * 0.5);
   const info = { type: 'hit', id: a.id, target: b.id, dmg, heavy: !!atk.focus || !!atk.heavy, backstab, riposte, punish, title: atk.title || '', x: px, z: pz };
   b.hp -= dmg;
   if (b.hp <= 0) {

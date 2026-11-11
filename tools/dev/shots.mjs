@@ -26,23 +26,27 @@ await p.screenshot({ path: `${out}/select.png` });
 await p.evaluate(() => document.getElementById('go').click());
 await p.waitForFunction(() => window.__duel?.world?.phase === 'fight' && window.__duel.views.length === 2, null, { timeout: 300000 });
 const key = async (k, ms = 60) => { await p.keyboard.down(k); await p.waitForTimeout(ms); await p.keyboard.up(k); };
-const place = (foe = {}, me = {}) => p.evaluate(([foe, me]) => { const w = window.__duel.world; Object.assign(w.fighters[0], { x: 0, z: -1.3, yaw: 0, hp: 100, stam: 100, state: 'idle', t: 0, winded: 0, seq: '', queue: '', disarmed: false, ...me }); Object.assign(w.fighters[1], { x: 0, z: 0.9, yaw: Math.PI, hp: 100, stam: 100, winded: 0, skillCd: 99, disarmed: false, ...foe }); w.timeLeft = 90; }, [foe, me]);
+const place = (foe = {}, me = {}) => p.evaluate(([foe, me]) => { const w = window.__duel.world; Object.assign(w.fighters[0], { x: 0, z: -1.3, yaw: 0, hp: 100, stam: 100, state: 'idle', t: 0, winded: 0, seq: '', queue: '', disarmed: false, ...me }); Object.assign(w.fighters[1], { x: 0, z: 0.9, yaw: Math.PI, hp: 100, stam: 100, winded: 0, energy: 0, disarmed: false, ...foe }); w.timeLeft = 90; }, [foe, me]);
 if (bare) {
   await p.addStyleTag({ content: '#hud,#controls,#labels,#banner,#vignette{display:none!important}' });
-  await p.evaluate(() => { const w = window.__duel.world, s = w.spawns; Object.assign(w.fighters[0], { x: s[0].x * 0.35, z: s[0].z * 0.35 }); Object.assign(w.fighters[1], { x: s[1].x * 0.35, z: s[1].z * 0.35, skillCd: 99 }); window.__duel.setLevel('easy'); });
+  await p.evaluate(() => { const w = window.__duel.world, s = w.spawns; Object.assign(w.fighters[0], { x: s[0].x * 0.35, z: s[0].z * 0.35 }); Object.assign(w.fighters[1], { x: s[1].x * 0.35, z: s[1].z * 0.35, energy: 0 }); window.__duel.setLevel('easy'); });
   await p.waitForTimeout(4000); await p.screenshot({ path: `${out}/bare.png` });
   console.log(JSON.stringify(await p.evaluate(() => ({ tris: window.__duel.renderInfo().triangles, calls: window.__duel.renderInfo().calls, grass: window.__duel.arena.grassCount }))));
 } else {
   await place({ state: 'stagger', t: 0, staggerDur: 30 }); await p.waitForTimeout(2500); await p.screenshot({ path: `${out}/1-fight.png` });
   await key('KeyJ'); await p.waitForTimeout(700); await key('KeyJ'); await p.waitForTimeout(900); await p.screenshot({ path: `${out}/2-two-presses.png` });
   await key('KeyK'); await p.waitForTimeout(2500); await p.screenshot({ path: `${out}/3-rising-fang.png` });
-  await p.waitForTimeout(5000);
-  // the rival charges, the player parries: disarm
-  await place({ state: 'charge', charge: 'h', t: 0 }); await p.waitForTimeout(700); await p.screenshot({ path: `${out}/4-rival-charging.png` });
-  await key('KeyL'); await p.waitForTimeout(3500); await p.screenshot({ path: `${out}/5-disarmed.png` });
-  await p.waitForTimeout(3000); await p.screenshot({ path: `${out}/6-after.png` });
-  await p.evaluate(() => { const f = window.__duel.world.fighters[0]; f.seq = 'HH'; f.seqT = 99; f.state = 'idle'; }); await p.waitForTimeout(900); await p.screenshot({ path: `${out}/6b-string.png` });
-  await p.evaluate(() => document.getElementById('btn-pause').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }))); await p.waitForTimeout(900);
+  await p.waitForTimeout(4000);
+  // guard held, with the rival frozen
+  await place({ state: 'stagger', t: 0, staggerDur: 30 }); await p.keyboard.down('KeyL'); await p.waitForTimeout(2500); await p.screenshot({ path: `${out}/4-guard.png` }); await p.keyboard.up('KeyL');
+  // the kick: stick away + vertical
+  await place({ state: 'stagger', t: 0, staggerDur: 30 }); await p.keyboard.down('KeyS'); await key('KeyK'); await p.waitForTimeout(1300); await p.screenshot({ path: `${out}/5-kick.png` }); await p.keyboard.up('KeyS');
+  await p.waitForTimeout(2500);
+  // the leap: stick toward + vertical
+  await place({ state: 'stagger', t: 0, staggerDur: 30, z: 1.6 }); await p.keyboard.down('KeyW'); await key('KeyK'); await p.waitForTimeout(1600); await p.screenshot({ path: `${out}/6-leap.png` }); await p.keyboard.up('KeyW');
+  await p.waitForTimeout(2500);
+  await p.evaluate(() => { const f = window.__duel.world.fighters[0]; f.seq = 'HH'; f.seqT = 99; f.state = 'idle'; f.energy = 100; }); await p.waitForTimeout(900); await p.screenshot({ path: `${out}/6b-string.png` });
+  await p.keyboard.press('Escape'); await p.waitForTimeout(900);
   await p.screenshot({ path: `${out}/7-paused.png` });
   console.log(JSON.stringify(await p.evaluate(() => ({ fps: window.__duel.fps, tris: window.__duel.renderInfo().triangles, foe: { st: window.__duel.world.fighters[1].state, disarmed: window.__duel.world.fighters[1].disarmed } }))));
 }

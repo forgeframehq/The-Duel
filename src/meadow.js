@@ -16,7 +16,8 @@ const ART = new URL('../assets/scenery/', import.meta.url).href;
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 
 export const MEADOW_R = 22;              // how far a fighter can walk from the centre
-const SPAWNS = [{ x: 0, z: -8.5, yaw: 0 }, { x: 0, z: 8.5, yaw: Math.PI }];
+// The fighters start on the path, facing each other along it. (pathX is a function declaration further down.)
+const SPAWNS = [-8.5, 8.5].map((z) => ({ x: pathX(z), z, yaw: Math.atan2(pathX(-z) - pathX(z), -2 * z) }));
 // Things to fight around. Boulders and tree trunks block sight as well as movement.
 const ROCKS = [{ x: -9.5, z: 2.5, r: 1.7, h: 2.6, turn: 0.4 }, { x: 10.5, z: -4.5, r: 1.5, h: 2.3, turn: 2.1 }, { x: 5, z: 13.5, r: 1.3, h: 2.0, turn: 4.0 }, { x: -6, z: -14, r: 1.4, h: 2.2, turn: 5.2 }];
 const TREES_IN = [{ x: -15, z: -6.5, r: 0.8, h: 13, turn: 1.0 }, { x: 15.5, z: 8, r: 0.8, h: 12, turn: 3.3 }];
@@ -46,7 +47,7 @@ export function groundY(x, z) {
 }
 // The worn path: it winds through the middle of the meadow, with a trodden patch where the fighters meet
 // and a branch leading off to the pavilion. Returns 0 (grass) to 1 (bare earth).
-const pathX = (z) => 4.5 * Math.sin(z * 0.055 + 0.6) + 1.8 * Math.sin(z * 0.16 + 2);
+function pathX(z) { return 4.5 * Math.sin(z * 0.055 + 0.6) + 1.8 * Math.sin(z * 0.16 + 2); }
 function dirtAt(x, z) {
   const main = 1 - smooth(0.9, 2.5, Math.abs(x - pathX(z)) + (fbm(x * 0.4, z * 0.4) - 0.5) * 1.2);
   const ring = (1 - smooth(2.5, 6, Math.hypot(x - pathX(0), z) + (fbm(x * 0.3 + 8, z * 0.3) - 0.5) * 2)) * 0.85;
@@ -364,5 +365,6 @@ export function buildMeadow() {
     motes.geo.attributes.position.needsUpdate = true;
   }
 
-  return { group, obstacles: OBSTACLES, spawns: SPAWNS, R: MEADOW_R, update, look: MEADOW_LOOK, grassCount: grass.count };
+  // `stage` is where a fighter stands on the hero select screen: the trodden patch in the middle of the path.
+  return { group, obstacles: OBSTACLES, spawns: SPAWNS, R: MEADOW_R, update, look: MEADOW_LOOK, stage: { x: pathX(0), z: 0 }, grassCount: grass.count };
 }
