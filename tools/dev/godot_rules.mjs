@@ -18,6 +18,12 @@ for (const id of ['sword', 'divine', 'mace']) {
   W[id].v.forEach((a, i) => { a.anim = FREE.v[i]; });
   W[id].strings.HHH.anim = FREE.h[2];
 }
+// Wuixi's katana uses the motion-captured sword combo (MoCap Online): its first three cuts for the horizontal string,
+// its fourth for the heavier vertical cut.
+const MOCAP = 'KBS_Sword_ATK_Combo_01_001_IP';
+[[0.2, 0.73, 1.1], [1.1, 1.53, 2.0], [2.0, 2.5, 3.2]].forEach((t, i) => { W.katana.h[i].anim = [MOCAP, ...t]; });
+W.katana.strings.HHH.anim = [MOCAP, 2.0, 2.5, 3.2];
+W.katana.v[1].anim = [MOCAP, 3.3, 3.93, 4.6];
 for (const id in W) W[id].dir.HF.anim = ['Sword_Dash', 0.0, 0.30, 1.0];
 const S = {};
 for (const [id, s] of Object.entries(SKILLS)) S[id] = { name: s.name, buff: s.buff || 0, atk: s.atk ? fix(s.atk) : null };

@@ -2328,9 +2328,9 @@
     {
      "name": "h1",
      "anim": [
-      "Left_Slash",
-      0.5,
-      0.78,
+      "KBS_Sword_ATK_Combo_01_001_IP",
+      0.2,
+      0.73,
       1.1
      ],
      "windup": 0.1496,
@@ -2362,10 +2362,10 @@
     {
      "name": "h2",
      "anim": [
-      "Left_Slash",
-      1.08,
-      1.33,
-      1.8
+      "KBS_Sword_ATK_Combo_01_001_IP",
+      1.1,
+      1.53,
+      2
      ],
      "windup": 0.1496,
      "active": 0.12,
@@ -2396,10 +2396,10 @@
     {
      "name": "h3",
      "anim": [
-      "Weapon_Combo",
-      1.85,
-      2.25,
-      3
+      "KBS_Sword_ATK_Combo_01_001_IP",
+      2,
+      2.5,
+      3.2
      ],
      "windup": 0.2112,
      "active": 0.12,
@@ -2466,10 +2466,10 @@
     {
      "name": "v2",
      "anim": [
-      "Weapon_Combo_2",
-      2.55,
-      3.05,
-      3.7
+      "KBS_Sword_ATK_Combo_01_001_IP",
+      3.3,
+      3.93,
+      4.6
      ],
      "windup": 0.22,
      "active": 0.12,
@@ -2502,10 +2502,10 @@
     "HHH": {
      "name": "sweep",
      "anim": [
-      "Weapon_Combo",
-      1.85,
-      2.25,
-      3
+      "KBS_Sword_ATK_Combo_01_001_IP",
+      2,
+      2.5,
+      3.2
      ],
      "windup": 0.2112,
      "active": 0.12,

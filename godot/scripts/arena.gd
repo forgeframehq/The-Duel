@@ -10,6 +10,7 @@ const GROUND_SHADER := """
 shader_type spatial;
 uniform sampler2D noise_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D dirt_tex : source_color, repeat_enable, filter_linear_mipmap_anisotropic;
+uniform sampler2D moss_tex : repeat_enable, filter_linear_mipmap_anisotropic;
 uniform float ring = 22.0;
 varying vec3 wpos;
 float height(vec2 p) {
@@ -28,11 +29,15 @@ void vertex() {
 void fragment() {
 	float n = texture(noise_tex, wpos.xz * 0.03).r;
 	float m = texture(noise_tex, wpos.xz * 0.25).r;
-	vec3 grass = mix(vec3(0.055, 0.12, 0.028), vec3(0.12, 0.21, 0.055), n);
+	float patch = texture(noise_tex, wpos.xz * 0.011 + vec2(0.5, 0.2)).r;
+	vec3 grass = mix(vec3(0.03, 0.105, 0.012), vec3(0.085, 0.235, 0.03), clamp(n * 0.7 + patch * 0.6 - 0.15, 0.0, 1.0));
 	vec3 dirt = texture(dirt_tex, wpos.xz * 0.22).rgb * vec3(0.8, 0.72, 0.6);
 	// a worn patch of earth in the middle of the ring, where the fighting happens
-	float worn = smoothstep(6.0, 2.0, length(wpos.xz) + (n - 0.5) * 4.0);
-	ALBEDO = mix(grass * (0.8 + m * 0.4), dirt, worn * 0.9);
+	float worn = smoothstep(5.0, 1.5, length(wpos.xz) + (n - 0.5) * 4.0);
+	// a photo of moss gives the lawn its fine grain: only its light and dark are used, the colour stays ours
+	vec3 moss = texture(moss_tex, wpos.xz * 0.35).rgb;
+	float grain = clamp(0.55 + dot(moss, vec3(0.3, 0.6, 0.1)) * 24.0, 0.72, 1.35);      // the photo is very dark: about 0.02 on average
+	ALBEDO = mix(grass * grain * 1.25, dirt, worn * 0.75);
 	ROUGHNESS = 0.95;
 }
 """
@@ -60,7 +65,7 @@ void vertex() {
 	NORMAL = vec3(0.0, 1.0, 0.0);
 }
 void fragment() {
-	ALBEDO = mix(vec3(0.045, 0.10, 0.022), vec3(0.19, 0.30, 0.08), tip) * COLOR.rgb;
+	ALBEDO = mix(vec3(0.028, 0.10, 0.012), vec3(0.17, 0.38, 0.05), tip) * COLOR.rgb;
 	// lit as if every blade faced the sky, front and back alike, so the lawn reads as one soft surface instead of dark spikes
 	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
 	ROUGHNESS = 0.9;
@@ -99,7 +104,7 @@ func _ready() -> void:
 	var with_mips := noise_img.duplicate() as Image; with_mips.generate_mipmaps()
 	var noise := ImageTexture.create_from_image(with_mips)
 	var ground := MeshInstance3D.new(); var pm := PlaneMesh.new(); pm.size = Vector2(420, 420); pm.subdivide_width = 160; pm.subdivide_depth = 160; ground.mesh = pm
-	var gm := ShaderMaterial.new(); var gs := Shader.new(); gs.code = GROUND_SHADER; gm.shader = gs; gm.set_shader_parameter("noise_tex", noise); gm.set_shader_parameter("dirt_tex", load("res://textures/dirt_color.jpg")); gm.set_shader_parameter("ring", R)
+	var gm := ShaderMaterial.new(); var gs := Shader.new(); gs.code = GROUND_SHADER; gm.shader = gs; gm.set_shader_parameter("noise_tex", noise); gm.set_shader_parameter("dirt_tex", load("res://textures/dirt_color.jpg")); gm.set_shader_parameter("moss_tex", load("res://textures/moss_color.jpg")); gm.set_shader_parameter("ring", R)
 	ground.material_override = gm; ground.extra_cull_margin = 40.0; add_child(ground)
 	_grass()
 	_scenery()
@@ -117,20 +122,22 @@ func _sky() -> void:
 		var phi := deg_to_rad(35.9)
 		var in_photo := Vector3(sin(phi), 0, -cos(phi))
 		env.sky_rotation = Vector3(0, (atan2(sun_dir.x, sun_dir.z) - atan2(in_photo.x, in_photo.z)) * float(OS.get_environment("DUEL_SKYSIGN") if OS.get_environment("DUEL_SKYSIGN") != "" else "1"), 0)
-		env.background_energy_multiplier = 2.3
+		env.background_energy_multiplier = 1.9
 	else:
 		var mat := ProceduralSkyMaterial.new()
 		mat.sky_top_color = Color(0.20, 0.42, 0.78); mat.sky_horizon_color = Color(0.80, 0.86, 0.90); mat.sky_curve = 0.12
 		mat.ground_bottom_color = Color(0.22, 0.30, 0.16); mat.ground_horizon_color = Color(0.70, 0.78, 0.76)
 		sky.sky_material = mat
 	env.background_mode = Environment.BG_SKY; env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY; env.ambient_light_energy = 0.75
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC; env.tonemap_white = 5.0
-	env.fog_enabled = true; env.fog_light_color = Color(0.72, 0.80, 0.86); env.fog_density = 0.003; env.fog_sky_affect = 0.0
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY; env.ambient_light_energy = 0.5
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC; env.tonemap_white = 4.0
+	# the look: a clear, vivid summer day. Strong colour, deep shadows, almost no haze.
+	env.adjustment_enabled = true; env.adjustment_contrast = 1.12; env.adjustment_saturation = 1.16
+	env.fog_enabled = true; env.fog_light_color = Color(0.55, 0.72, 0.95); env.fog_density = 0.0011; env.fog_sky_affect = 0.0
 	env.glow_enabled = true; env.glow_intensity = 0.5; env.glow_bloom = 0.05; env.glow_hdr_threshold = 1.1
 	we.environment = env; add_child(we)
-	sun = DirectionalLight3D.new(); sun.rotation_degrees = Vector3(-48, 145, 0); sun.light_energy = 1.25; sun.light_color = Color(1.0, 0.93, 0.80)
-	sun.shadow_enabled = true; sun.directional_shadow_max_distance = 45.0; sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS; sun.shadow_blur = 1.5
+	sun = DirectionalLight3D.new(); sun.rotation_degrees = Vector3(-48, 145, 0); sun.light_energy = 1.75; sun.light_color = Color(1.0, 0.94, 0.80)
+	sun.shadow_enabled = true; sun.directional_shadow_max_distance = 60.0; sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS; sun.shadow_blur = 0.8
 	add_child(sun)
 
 func _grass() -> void:
@@ -190,21 +197,70 @@ func _hash(v: float) -> float:
 	return fposmod(sin(v * 127.1) * 43758.5453, 1.0)
 
 func _scenery() -> void:
-	var tree: PackedScene = load("res://scenery/tree_broadleaf.glb")
-	var tree_mid: PackedScene = load("res://scenery/tree_broadleaf_mid.glb")
+	var N := "res://scenery/nature/"
+	var trees: Array = [1, 2, 3, 4, 5].map(func(i): return load(N + "CommonTree_%d.gltf" % i))
 	var rock: PackedScene = load("res://scenery/boulders.glb")
 	var hut: PackedScene = load("res://scenery/hut.glb")
 	var pavilion: PackedScene = load("res://scenery/pavilion.glb")
-	for i in 30:
-		var a := (float(i) / 30) * TAU + _hash(i * 4.1) * 0.25
-		var d := R + 6 + _hash(i * 6.3) * (16.0 if i % 3 else 55.0)
-		_place(tree if d < R + 12 else tree_mid, sin(a) * d, cos(a) * d, _hash(i * 2.3) * TAU, 10 + _hash(i * 8.7) * 7, -0.25, d < 50)
-	for i in 16:
+	# leafy trees ringing the meadow (they throw the long shadows across the grass) ...
+	for i in 24:
+		var a := (float(i) / 24) * TAU + _hash(i * 4.1) * 0.22
+		var d := R + 4.5 + _hash(i * 6.3) * 12.0
+		_place(trees[i % 5], sin(a) * d, cos(a) * d, _hash(i * 2.3) * TAU, 9.5 + _hash(i * 8.7) * 5.0, -0.15)
+	# ... and scattered over the hills behind, where they only need to read as trees
+	for i in 60:
+		var a := _hash(i * 3.7 + 9) * TAU
+		var d := 44.0 + _hash(i * 5.1 + 2) * 95.0
+		_place(trees[(i * 3) % 5], sin(a) * d, cos(a) * d, _hash(i * 1.9) * TAU, 10 + _hash(i * 7.3) * 7, -0.3, false)
+	for i in 10:
 		var a := _hash(i * 5.7 + 1) * TAU
-		var d := R + 3 + _hash(i * 3.1) * 50
-		_place(rock, sin(a) * d, cos(a) * d, _hash(i * 9.9) * TAU, 1.2 + _hash(i * 2.7) * 3.2, -0.2, d < 45)
+		var d := R + 3 + _hash(i * 3.1) * 40
+		_place(rock, sin(a) * d, cos(a) * d, _hash(i * 9.9) * TAU, 1.2 + _hash(i * 2.7) * 2.6, -0.2, d < 45)
 	_place(pavilion, -27, 22, 2.2, 7.5, -0.3)
 	_place(hut, 30, 27, -2.3, 6, -0.3); _place(hut, 38, 16, -1.2, 5.4, -0.3); _place(hut, -34, -24, 0.9, 6, -0.3); _place(hut, 21, -38, 2.6, 5.6, -0.3)
+	var bush_f: PackedScene = load(N + "Bush_Common_Flowers.gltf")
+	for i in 34:
+		var a := _hash(i * 2.9 + 4) * TAU
+		var d := R + 1.5 + _hash(i * 4.3 + 1) * 16.0
+		_place(bush_f, sin(a) * d, cos(a) * d, _hash(i * 6.1) * TAU, 1.0 + _hash(i * 3.3) * 1.3, -0.1, d < R + 10)
+	# low things strewn through the lawn: tufts of longer grass, clover, and drifts of flowers
+	_strew(N + "Grass_Common_Short.gltf", 2600, 5.0, R + 12.0, 0.16, 0.3, 11, false, Color(0.55, 1.15, 0.4))
+	_strew(N + "Grass_Common_Tall.gltf", 700, 10.0, R + 14.0, 0.26, 0.48, 12, false, Color(0.55, 1.15, 0.4))
+	_strew(N + "Grass_Wispy_Short.gltf", 600, 6.0, R + 10.0, 0.18, 0.32, 13, false, Color(0.55, 1.15, 0.4))
+	_strew(N + "Clover_1.gltf", 500, 4.0, R + 6.0, 0.12, 0.22, 14)
+	_strew(N + "Flower_3_Group.gltf", 90, 7.0, R + 10.0, 0.35, 0.6, 15, true)
+	_strew(N + "Flower_4_Group.gltf", 60, 7.0, R + 10.0, 0.35, 0.6, 16, true)
+
+var strewn: Array[MultiMesh] = []
+
+## Scatter many copies of one small model over the ground between two distances from the centre, each `lo` to `hi` metres tall.
+## `drifts` gathers them into patches, the way flowers grow.
+func _strew(path: String, count: int, near: float, far: float, lo: float, hi: float, seed_value: int, drifts := false, tint := Color.WHITE) -> void:
+	var scene: Node3D = (load(path) as PackedScene).instantiate()
+	var rng := RandomNumberGenerator.new(); rng.seed = seed_value
+	for found in scene.find_children("*", "MeshInstance3D", true, false):
+		var src := found as MeshInstance3D
+		var box := src.get_aabb()
+		var mm := MultiMesh.new(); mm.transform_format = MultiMesh.TRANSFORM_3D; mm.mesh = src.mesh; mm.instance_count = count
+		var local := _local(scene, src)
+		var r2 := RandomNumberGenerator.new(); r2.seed = seed_value      # the same places for every part of the model
+		var centre := Vector2.ZERO
+		for i in count:
+			if not drifts or i % 9 == 0:
+				var a := r2.randf() * TAU
+				var d := sqrt(lerpf(near * near, far * far, r2.randf()))
+				centre = Vector2(sin(a) * d, cos(a) * d)
+			var p := centre + (Vector2(r2.randf() - 0.5, r2.randf() - 0.5) * 2.4 if drifts else Vector2.ZERO)
+			var k: float = lerpf(lo, hi, r2.randf()) / max(box.size.y, 0.01)
+			var t := Transform3D(Basis(Vector3.UP, r2.randf() * TAU).scaled(Vector3.ONE * k), Vector3(p.x, height_at(p.x, p.y), p.y)) * local
+			mm.set_instance_transform(i, t)
+		var inst := MultiMeshInstance3D.new(); inst.multimesh = mm
+		if tint != Color.WHITE:
+			# the pack's grass is painted with autumn-yellow tips; tint it to sit in a summer lawn
+			var mat := (src.mesh.surface_get_material(0) as BaseMaterial3D).duplicate() as BaseMaterial3D
+			mat.albedo_color = tint; inst.material_override = mat
+		inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; add_child(inst); strewn.append(mm)
+	scene.free()
 
 func set_fighters(a: Vector3, b: Vector3) -> void:
 	grass_mat.set_shader_parameter("fighter_a", a); grass_mat.set_shader_parameter("fighter_b", b)
@@ -212,5 +268,6 @@ func set_fighters(a: Vector3, b: Vector3) -> void:
 ## "Low" is for phones that struggle: a third of the grass, no shadows, and the 3D picture drawn a little smaller.
 func set_quality(low: bool) -> void:
 	grass.visible_instance_count = 35000 if low else -1
+	for mm in strewn: mm.visible_instance_count = mm.instance_count / 3 if low else -1
 	sun.shadow_enabled = not low
 	get_viewport().scaling_3d_scale = 0.7 if low else 1.0

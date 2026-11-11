@@ -2,8 +2,17 @@ extends Node3D
 ## The Duel, Godot edition. This script runs the whole game: the menu, a match, the camera, sounds and effects.
 ## The rules themselves are in scripts/sim.gd; this only feeds them the player's thumbs and shows what they decide.
 
-const VERSION := "0.4"
-const CAM := {"dist": 3.5, "side": 1.0, "height": 1.4, "pitch": 0.26, "fov": 54.0}
+const VERSION := "0.5"
+## The camera angles offered on the menu. dist: how far behind the player; side: how far off the shoulder; pitch: how steeply it
+## looks down. "Side-on" stands off to one side of the two fighters instead, like a classic fighting game.
+const CAMS := [
+	{"name": "Classic", "dist": 3.5, "side": 1.0, "height": 1.4, "pitch": 0.26, "fov": 54.0},
+	{"name": "Close", "dist": 2.5, "side": 0.8, "height": 1.35, "pitch": 0.16, "fov": 52.0},
+	{"name": "Wide", "dist": 6.5, "side": 0.4, "height": 1.6, "pitch": 0.42, "fov": 56.0},
+	{"name": "Side-on", "dist": 6.2, "side": 0.0, "height": 1.3, "pitch": 0.12, "fov": 46.0, "side_on": true},
+]
+var cam_pick := int(OS.get_environment("DUEL_CAM")) if OS.get_environment("DUEL_CAM") != "" else 0
+var CAM: Dictionary = CAMS[cam_pick]
 
 var arena: Arena
 var cam: Camera3D
@@ -41,6 +50,11 @@ func _ready() -> void:
 	arena = Arena.new(); add_child(arena)
 	cam = Camera3D.new(); cam.fov = CAM.fov; cam.near = 0.1; cam.far = 400.0; add_child(cam)
 	var layer := CanvasLayer.new(); add_child(layer)
+	# a soft darkening toward the corners, to draw the eye to the fighters
+	var vig := ColorRect.new(); vig.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT); vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var vm := ShaderMaterial.new(); var vs := Shader.new()
+	vs.code = "shader_type canvas_item;\nvoid fragment() { float d = length((UV - 0.5) * vec2(1.25, 1.0)); COLOR = vec4(0.0, 0.02, 0.05, smoothstep(0.42, 0.85, d) * 0.38); }"
+	vm.shader = vs; vig.material = vm; layer.add_child(vig)
 	hud = Hud.new(); layer.add_child(hud); hud.visible = false
 	pad = TouchPad.new(); layer.add_child(pad); pad.visible = false
 	for n in ["block1", "block2", "death", "dodge", "exhausted", "gong", "guard_break", "hit1", "hit2", "hit_heavy", "horn", "parry", "swing1", "swing2", "swing_heavy", "ui_select", "ui_start", "ui_tap", "victory_hit"]:
@@ -149,6 +163,12 @@ func _build_menu(layer: CanvasLayer) -> void:
 	var gfx := _button("Graphics: High", 18, func() -> void:
 		low = not low; arena.set_quality(low); menu.find_child("Gfx", true, false).text = "Graphics: Low" if low else "Graphics: High")
 	gfx.name = "Gfx"; right.add_child(gfx)
+	var camb := _button("Camera: Classic", 18, func() -> void:
+		cam_pick = (cam_pick + 1) % CAMS.size(); CAM = CAMS[cam_pick]; menu.find_child("Camb", true, false).text = "Camera: " + CAM.name)
+	camb.name = "Camb"
+	var opts := HBoxContainer.new(); opts.add_theme_constant_override("separation", 10); right.add_child(opts)
+	gfx.get_parent().remove_child(gfx); opts.add_child(gfx); opts.add_child(camb)
+	gfx.size_flags_horizontal = Control.SIZE_EXPAND_FILL; camb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var go := _button("FIGHT", 40, _start_match, true); go.custom_minimum_size = Vector2(0, 84); right.add_child(go)
 
 func _refresh_menu() -> void:
@@ -287,18 +307,29 @@ func _camera(dt: float) -> void:
 	var p := views[0].position
 	var e := views[1].position
 	var flat := Vector2(e.x - p.x, e.z - p.z)
-	if flat.length() > 0.6: cam_yaw += Sim.ang_diff(cam_yaw, atan2(flat.x, flat.y)) * min(1.0, 5.0 * dt)
-	var fx := sin(cam_yaw)
-	var fz := cos(cam_yaw)
-	var back: float = cos(CAM.pitch) * CAM.dist
-	# pull back a little when the fighters are far apart, so both stay in view
-	var extra := clampf((flat.length() - 4.0) * 0.18, 0.0, 1.6)
-	var pos := Vector3(p.x - fx * (back + extra) - fz * CAM.side, CAM.height + sin(CAM.pitch) * CAM.dist + extra * 0.3, p.z - fz * (back + extra) + fx * CAM.side)
+	var mid := Vector3((p.x + e.x) / 2, 1.1, (p.z + e.z) / 2)
+	var pos: Vector3
+	var look: Vector3
+	if CAM.get("side_on", false):
+		# stand off to one side of the line between the fighters; the stick is then read from that side
+		if flat.length() > 0.6: cam_yaw += Sim.ang_diff(cam_yaw, atan2(flat.x, flat.y) - PI / 2) * min(1.0, 2.5 * dt)
+		var away: float = CAM.dist + clampf((flat.length() - 3.0) * 0.55, 0.0, 5.0)
+		pos = Vector3(mid.x - sin(cam_yaw) * away, CAM.height + sin(CAM.pitch) * away, mid.z - cos(cam_yaw) * away)
+		look = mid
+	else:
+		if flat.length() > 0.6: cam_yaw += Sim.ang_diff(cam_yaw, atan2(flat.x, flat.y)) * min(1.0, 5.0 * dt)
+		var fx := sin(cam_yaw)
+		var fz := cos(cam_yaw)
+		var back: float = cos(CAM.pitch) * CAM.dist
+		# pull back a little when the fighters are far apart, so both stay in view
+		var extra := clampf((flat.length() - 4.0) * 0.18, 0.0, 1.6)
+		pos = Vector3(p.x - fx * (back + extra) - fz * CAM.side, CAM.height + sin(CAM.pitch) * CAM.dist + extra * 0.3, p.z - fz * (back + extra) + fx * CAM.side)
+		look = Vector3(p.x * 0.55 + e.x * 0.45, 1.2, p.z * 0.55 + e.z * 0.45)
 	shake = max(0.0, shake - dt * 2.4)
 	if shake > 0: pos += Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * shake * 0.12
 	cam.fov = CAM.fov - (6.0 if get_viewport().get_visible_rect().size.aspect() > 2.0 else 0.0)
 	cam.position = pos
-	cam.look_at(Vector3(p.x * 0.55 + e.x * 0.45, 1.2, p.z * 0.55 + e.z * 0.45))
+	cam.look_at(look)
 	arena.set_fighters(p, e)
 
 # ---------------------------------------------------------------- what happens on screen when the rules say something happened
@@ -325,7 +356,7 @@ func _on_event(ev: Dictionary) -> void:
 			for i in views.size(): views[i].snap(world.fighters[i])
 			var p: Dictionary = world.fighters[0]
 			var e: Dictionary = world.fighters[1]
-			cam_yaw = atan2(e.x - p.x, e.z - p.z)
+			cam_yaw = atan2(e.x - p.x, e.z - p.z) - (PI / 2 if CAM.get("side_on", false) else 0.0)
 		"fight":
 			hud.say("FIGHT!", 0.9, Color(1.0, 0.86, 0.5)); play("gong", -8)
 		"swing":
