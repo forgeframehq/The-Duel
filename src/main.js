@@ -65,7 +65,16 @@ let app = 'menu';            // 'menu' | 'playing'
 let paused = false;
 let acc = 0, hitStop = 0, slowT = 0, slowScale = 1, lastTime = performance.now(), menuSpin = 0;
 let lockWanted = true, locked = false, lostT = 0, lastSecond = -1;
-const cam = { yaw: 0, pitch: 0.36, dist: 5.2 };
+// Camera views the player can switch between with the camera button (or the C key). The choice is remembered.
+const CAMERAS = [
+  { id: 'classic', name: 'Classic', dist: 5.2, side: 0.55, sideLocked: 1.2, height: 1.55, pitch: 0.36, fov: 58 },
+  { id: 'shoulder', name: 'Shoulder', dist: 3.3, side: 0.85, sideLocked: 1.05, height: 1.5, pitch: 0.2, fov: 54 },
+  { id: 'wide', name: 'Wide', dist: 8.5, side: 0, sideLocked: 0.5, height: 1.6, pitch: 0.55, fov: 58 },
+  { id: 'side', name: 'Side-on', dist: 6, side: 0.55, sideLocked: 1.2, height: 1.55, pitch: 0.36, fov: 50 }, // both fighters in profile, like a fighting game
+];
+let camIndex = 0;
+try { camIndex = Math.max(0, CAMERAS.findIndex((c) => c.id === localStorage.getItem('duel.camera'))); } catch { /* storage unavailable */ }
+const cam = { yaw: 0, pitch: CAMERAS[camIndex].pitch };
 const tmp = new THREE.Vector3(), look = new THREE.Vector3();
 
 // ---------- HUD ----------
@@ -131,7 +140,7 @@ function handleEvents() {
       case 'round':
         views.forEach((v, i) => v.snap(world.fighters[i]));
         trails.forEach((t) => { t.count = 0; });
-        cam.yaw = world.fighters[0].yaw; cam.pitch = 0.36; locked = false; lostT = 0;
+        cam.yaw = world.fighters[0].yaw; cam.pitch = CAMERAS[camIndex].pitch; locked = false; lostT = 0;
         if (app === 'playing') { banner('ROUND ' + world.round, TIPS[(tipIndex++) % TIPS.length], 2.1); sfx.horn(); }
         break;
       case 'fight': banner('FIGHT!', '', 1.0); sfx.gong(); break;
@@ -240,30 +249,71 @@ function updateCamera(dt) {
     if (dist > 18 || lostT > 1.2) locked = false;
   } else if (los && dist < 13) { locked = true; lostT = 0; }
 
+  const C = CAMERAS[camIndex];
   const [lx, ly] = input.takeLook();
   cam.pitch = Math.max(0.05, Math.min(0.9, cam.pitch + ly * 0.004));
-  if (locked) {
+  // Side-on: stand off to one side of the line between the fighters, with the player on the left.
+  const sideOn = C.id === 'side' && locked;
+  if (sideOn) {
+    const want = Math.atan2(dz, -dx);
+    cam.yaw = wrapAngle(cam.yaw + wrapAngle(want - cam.yaw) * Math.min(1, 3 * dt));
+  } else if (locked) {
     const want = Math.atan2(dx, dz);
     cam.yaw = wrapAngle(cam.yaw + wrapAngle(want - cam.yaw) * Math.min(1, 6 * dt));
   } else cam.yaw = wrapAngle(cam.yaw - lx * 0.0055);
 
-  // Pull the camera in when a wall would come between it and the player.
   const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw), flat = Math.cos(cam.pitch);
-  let d = cam.dist;
+  if (sideOn) {
+    const mx = (pv.x + ev.x) / 2, mz = (pv.z + ev.z) / 2, full = Math.max(5.5, Math.min(14, 4.2 + dist * 0.8));
+    let d = full;
+    for (let i = 1; i <= 10; i++) {
+      const t = (i / 10) * full;
+      if (blocked(mx - sy * t, mz - cy * t)) { d = Math.max(2.5, t - full / 10); break; }
+    }
+    cam.cur = cam.cur === undefined ? d : cam.cur + (d - cam.cur) * Math.min(1, (d < cam.cur ? 20 : 4) * dt);
+    camera.position.set(mx - sy * cam.cur, 1.9 + dist * 0.06, mz - cy * cam.cur);
+    look.set(mx, 1.15, mz);
+    camera.position.add(shake.offset);
+    camera.lookAt(look);
+    return;
+  }
+
+  // Pull the camera in when a wall would come between it and the player.
+  let d = C.dist;
   for (let i = 1; i <= 10; i++) {
-    const t = (i / 10) * cam.dist;
-    if (blocked(pv.x - sy * flat * t, pv.z - cy * flat * t)) { d = Math.max(1.2, t - cam.dist / 10); break; }
+    const t = (i / 10) * C.dist;
+    if (blocked(pv.x - sy * flat * t, pv.z - cy * flat * t)) { d = Math.max(1.2, t - C.dist / 10); break; }
   }
   cam.cur = cam.cur === undefined ? d : cam.cur + (d - cam.cur) * Math.min(1, (d < cam.cur ? 20 : 4) * dt);
   // Stand further off the shoulder while locked on, so the player's own body does not hide the enemy.
-  cam.side = (cam.side ?? 0.55) + ((locked ? 1.2 : 0.55) - (cam.side ?? 0.55)) * Math.min(1, 4 * dt);
+  const sideWant = locked ? C.sideLocked : C.side;
+  cam.side = (cam.side ?? sideWant) + (sideWant - (cam.side ?? sideWant)) * Math.min(1, 4 * dt);
   const side = cam.side;
-  camera.position.set(pv.x - sy * flat * cam.cur - cy * side, 1.55 + Math.sin(cam.pitch) * cam.cur, pv.z - cy * flat * cam.cur + sy * side);
+  camera.position.set(pv.x - sy * flat * cam.cur - cy * side, C.height + Math.sin(cam.pitch) * cam.cur, pv.z - cy * flat * cam.cur + sy * side);
   if (locked) look.set(pv.x * 0.55 + ev.x * 0.45, 1.25, pv.z * 0.55 + ev.z * 0.45);
   else look.set(pv.x + sy * 3, 1.3, pv.z + cy * 3);
   camera.position.add(shake.offset);
   camera.lookAt(look);
 }
+
+function toast(text) {
+  const el = document.createElement('span');
+  el.textContent = text; el.className = 'call';
+  el.style.left = '50%'; el.style.top = '34%';
+  hud.labels.appendChild(el);
+  setTimeout(() => el.remove(), 1150);
+}
+
+function cycleCamera() {
+  camIndex = (camIndex + 1) % CAMERAS.length;
+  const C = CAMERAS[camIndex];
+  cam.pitch = C.pitch; cam.cur = undefined; cam.side = undefined;
+  try { localStorage.setItem('duel.camera', C.id); } catch { /* storage unavailable */ }
+  resize();
+  toast('Camera: ' + C.name);
+}
+$('btn-cam').addEventListener('pointerdown', (ev) => { ev.preventDefault(); ev.stopPropagation(); cycleCamera(); });
+addEventListener('keydown', (ev) => { if (ev.code === 'KeyC' && !ev.repeat && app === 'playing') cycleCamera(); });
 
 // ---------- Menu / flow ----------
 function showMenu(title, result = '') {
@@ -345,7 +395,7 @@ function resize() {
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
   // Keep the horizontal view wide on very long phone screens without squashing it on squarer ones.
-  camera.fov = w / h > 2 ? 52 : 58;
+  camera.fov = CAMERAS[camIndex].fov - (w / h > 2 ? 6 : 0);
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);

@@ -84,8 +84,10 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 #btn-lock { right: calc(var(--sr) + 3vw + 50vh); bottom: calc(var(--sb) + 4vh); width: 14vh; height: 14vh; opacity: .6; }
 #btn-lock.want { opacity: .85; }
 #btn-lock.locked { opacity: 1; color: var(--gold); box-shadow: 0 0 2vh rgba(255, 150, 40, .6); }
-#btn-pause { position: absolute; pointer-events: auto; left: 50%; top: calc(var(--st) + 19vh); width: 9vh; height: 9vh; margin-left: -4.5vh; opacity: .5; }
+#btn-pause { position: absolute; pointer-events: auto; left: 50%; top: calc(var(--st) + 19vh); width: 9vh; height: 9vh; margin-left: -15.5vh; opacity: .5; }
 #btn-pause svg { width: 60%; height: 60%; fill: var(--bone); }
+#btn-cam { position: absolute; pointer-events: auto; left: 50%; top: calc(var(--st) + 19vh); width: 9vh; height: 9vh; margin-left: 6.5vh; opacity: .55; }
+#btn-cam svg { width: 70%; height: 70%; stroke: var(--bone); }
 
 /* ---------- Menu ---------- */
 #menu, #paused, #rotate { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; }
