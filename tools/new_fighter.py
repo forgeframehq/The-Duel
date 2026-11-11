@@ -1,6 +1,9 @@
 """Makes a new fighter body with Meshy and rigs it on the shared humanoid skeleton.
 
-    MESHY_KEY=... python3 tools/new_fighter.py <id> <prompt file> <out dir>
+    MESHY_KEY=... python3 tools/new_fighter.py <id> <prompt .txt  OR  concept image .png/.jpg/.webp> <out dir>
+
+A concept image gives far more control over the look than a text prompt. It should show one character,
+full body, front view, A-pose, empty hands, plain background.
 
 Steps, each resumable (task ids are saved in <out dir>/<id>.json, so re-running never pays twice):
   1. preview  text -> untextured body, A-pose, about 30,000 triangles
@@ -13,7 +16,7 @@ body: the game attaches them to the hand and forearm bones, so the prompt must a
 
 The key is read from the environment and never written anywhere.
 """
-import json, os, sys, time, urllib.request, urllib.error
+import base64, json, os, sys, time, urllib.request, urllib.error
 
 KEY = os.environ["MESHY_KEY"]
 API = "https://api.meshy.ai/openapi"
@@ -45,12 +48,36 @@ def wait(path, tid, label):
         time.sleep(10)
 
 
-def main(fid, prompt, out):
+def from_image(fid, image, out, rec, save):
+    """Image -> textured body (A-pose, about 30,000 triangles). Returns the finished task."""
+    if not rec.get("model"):
+        ext = os.path.splitext(image)[1].lower().lstrip(".").replace("jpg", "jpeg")
+        uri = f"data:image/{ext};base64," + base64.b64encode(open(image, "rb").read()).decode()
+        rec["model"] = call("POST", "/v1/image-to-3d", {
+            "image_url": uri, "ai_model": MODEL, "should_texture": True, "enable_pbr": True, "pose_mode": "a-pose",
+            "should_remesh": True, "topology": "triangle", "target_polycount": 30000, "target_formats": ["glb"]})["result"]
+        save()
+        cost = call("GET", f"/v1/image-to-3d/{rec['model']}").get("consumed_credits", 0)
+        print("image-to-3d cost:", cost, flush=True)
+        if cost > MAX_PREVIEW + 20:
+            call("DELETE", f"/v1/image-to-3d/{rec['model']}")
+            del rec["model"]; save()
+            sys.exit(f"image-to-3d would cost {cost} credits (limit {MAX_PREVIEW + 20}); cancelled")
+    t = wait("/v1/image-to-3d", rec["model"], "model")
+    if t["status"] != "SUCCEEDED": sys.exit(f"model {t['status']}: {t.get('task_error')}")
+    return t
+
+
+def main(fid, source, out):
     os.makedirs(out, exist_ok=True)
     rec_path = os.path.join(out, fid + ".json")
     rec = json.load(open(rec_path)) if os.path.exists(rec_path) else {}
     save = lambda: json.dump(rec, open(rec_path, "w"), indent=1)
     print("credits before:", call("GET", "/v1/balance").get("balance"), flush=True)
+    if not source.lower().endswith(".txt"):
+        r = from_image(fid, source, out, rec, save)
+        return finish(fid, out, rec, save, r)
+    prompt = open(source).read().strip()
 
     if not rec.get("preview"):
         rec["preview"] = call("POST", "/v2/text-to-3d", {
@@ -73,7 +100,11 @@ def main(fid, prompt, out):
     r = wait("/v2/text-to-3d", rec["refine"], "refine")
     if r["status"] != "SUCCEEDED": sys.exit(f"refine {r['status']}: {r.get('task_error')}")
     print("refine cost:", r.get("consumed_credits"), flush=True)
+    finish(fid, out, rec, save, r)
 
+
+def finish(fid, out, rec, save, r):
+    """Rig the textured body on the shared humanoid skeleton and download it."""
     if not rec.get("rig"):
         rec["rig"] = call("POST", "/v1/rigging", {"model_url": r["model_urls"]["glb"], "height_meters": 1.75})["result"]
         save()
@@ -88,4 +119,4 @@ def main(fid, prompt, out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], open(sys.argv[2]).read().strip(), sys.argv[3])
+    main(sys.argv[1], sys.argv[2], sys.argv[3])
