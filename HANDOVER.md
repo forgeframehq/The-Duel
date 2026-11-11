@@ -142,6 +142,10 @@ His rule: **looks come first; he does not care how big the game is.** Phones tha
 21. **Graphics settings** (in the settings menu from item 14): quality presets (Low / Medium / High / Ultra) covering model and texture detail, grass density, shadows, glow and haze, screen sharpness, and a frame-rate choice (30 / 60).
 22. **Heat and battery guard, as in Dawn of Dynasties.** That game made phones hot until commit `ebecec8` ("Cooler phones", 4 Nov): a 60 fps cap that drops to 30 when the phone struggles, plus removing a costly per-frame effect; it also pauses all work when the app is left (`js/game.js`, "Frame cap"). The Duel has **no cap at all** today: it draws as fast as the screen refreshes (up to 120 or 144 times a second on newer phones), at up to 2x sharpness, with shadows on. It does already pause when the app is left. Add the same frame cap before adding heavier graphics.
 
+**E. Third fighter (concept received 11 Nov)**
+
+23. Concept image saved as `tools/fighters/third_fighter_concept.png`: a helmeted woman warrior in black, crimson and gold with dragon embroidery, a dragon shoulder guard, long ponytail with red ribbons, tattered flowing skirt, and a katana. Not yet named or generated. To do: agree a name, faction and special; generate with `tools/new_fighter.py` (needs `MESHY_KEY`; about 35 credits) at a **much higher triangle count than the old 30,000** and without the heavy shrinking, since he wants no more boxy characters; add a katana weapon (sword moves to start). Watch for: the concept is not in A-pose and holds a sword and scabbard, which may fuse into the hands; hair, ribbons and skirt have no bones on the shared 24-bone skeleton, so they will not flow unless extra cloth movement is added in code.
+
 ### Backlog (waiting on Sudhi's go-ahead)
 
 1. Real specials for the eight Dawn of Dynasties fighters (currently all Second Wind).
