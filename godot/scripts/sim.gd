@@ -6,9 +6,10 @@ class_name Sim
 ##   a tap is a quick attack; three in a row make a string, and the order of the buttons picks the finisher
 ##   the stick held toward or away from the enemy turns the press into a different move (lunge, back-step cut, leap, kick)
 ##   holding the button on after the hit winds up a blue charged strike, which normal attacks cannot stop
-##   holding Guard blocks normal attacks from the front until the guard meter runs out
-##   pressing Guard just as a blow lands is a parry: a normal attack is turned aside, a charged one also disarms
-##   a kick or a charged strike goes through a held guard; a special goes through everything but a dodge
+##   holding Guard raises the shield: it blocks from the front, and every blocked blow wears the guard meter down
+##   pressing Guard just as a blow lands is a parry: the attacker is thrown off balance and the next hit on them is a riposte
+##   a heavy attack (hold the button) takes most of a guard in one blow; a kick knocks a shield aside; a special ignores it
+## (Fencing rules, Godot 0.9: every fighter has a one-handed weapon and a shield. No disarming, no air combos.)
 
 const TICK := 1.0 / 60.0
 const ROUND_TIME := 99.0
@@ -47,6 +48,10 @@ static func weapon_of(id: String) -> Dictionary:
 	var w: Dictionary = data().weapons
 	return w.get(id, w.sword)
 
+static func shield_of(id: String) -> Dictionary:
+	var s: Dictionary = data().shields
+	return s.get(id, s.wood)
+
 static func skill_of(id: String) -> Dictionary:
 	var s: Dictionary = data().skills
 	return s.get(id, s.wind)
@@ -84,7 +89,7 @@ static func _fresh() -> Dictionary:
 		"connected": false, "winded": 0.0, "regenDelay": 0.0}
 
 static func _make_fighter(id: int, stats: Dictionary) -> Dictionary:
-	var f := {"id": id, "stats": stats, "weapon": weapon_of(stats.weapon), "skill": skill_of(stats.skill),
+	var f := {"id": id, "stats": stats, "weapon": weapon_of(stats.weapon), "shield": shield_of(stats.get("shield", "wood")), "skill": skill_of(stats.skill),
 		"x": 0.0, "z": 0.0, "vx": 0.0, "vz": 0.0, "yaw": 0.0, "hp": stats.maxHp, "stam": stats.maxStam, "swingId": 0, "ddx": 0.0, "ddz": 0.0, "energy": 30.0}
 	f.merge(_fresh())
 	return f
@@ -169,7 +174,7 @@ static func _stick_dir(f: Dictionary, cmd: Dictionary) -> String:
 
 static func _start_attack(f: Dictionary, btn: String, w: Dictionary, cmd: Dictionary) -> bool:
 	var dir := _stick_dir(f, cmd)
-	var special: Dictionary = f.weapon.dir[btn + dir] if dir != "" else {}
+	var special: Dictionary = f.weapon.dir.get(btn + dir, {}) if dir != "" else {}
 	# With the weapon knocked away, the only attack left is the kick.
 	if f.disarmed and not (not special.is_empty() and special.kick):
 		w.events.append({"type": "unarmed", "id": f.id}); return false
@@ -237,7 +242,7 @@ static func armored(f: Dictionary) -> bool:
 	return f.state == "charge" or (f.state == "attack" and f.atk.focus and f.t < f.atk.windup + f.atk.active)
 
 static func parrying(f: Dictionary) -> bool:
-	return f.state == "guard" and f.parryOk and f.t <= PARRY_WINDOW
+	return f.state == "guard" and f.parryOk and f.t <= f.shield.parry      # a small shield is quicker to bring across
 
 static func _face(f: Dictionary, cmd: Dictionary, rate: float) -> void:
 	if cmd.faceYaw != null: f.yaw = _turn_toward(f.yaw, cmd.faceYaw, rate * TICK)
@@ -480,33 +485,27 @@ static func _apply_hit(a: Dictionary, b: Dictionary, atk: Dictionary, w: Diction
 		w.events.append(info)
 		return
 
-	var guarding: bool = b.state == "guard" and off <= b.weapon.guardArc      # a shield covers more of the body
+	var guarding: bool = b.state == "guard" and off <= b.shield.arc      # a bigger shield covers more of the body
 	if guarding and not atk.skill and parrying(b):
+		# A parry: the blow is turned aside on the shield and the attacker is thrown off balance (longer for a heavy attack).
+		# The defender is free at once, and their next hit on the reeling attacker counts as a riposte.
 		b.stam = min(b.stats.maxStam, b.stam + 20); b.regenDelay = 0.0; b.seq = ""; b.chargeMul = 1.0; b.parryCd = 0.5
 		b.yaw = atan2(-dx, -dz); _gain(b, 18)
-		if atk.focus:
-			# Parrying a charged strike: the attacker's weapon is knocked out of their hand,
-			# they are thrown wide open, and the defender counters at once.
-			_stagger(a, 1.2, -nx * 2, -nz * 2, true)
-			_disarm(a, b, w)
-			_begin_swing(b, b.weapon.riposte, w)
-			w.events.append({"type": "parry", "id": b.id, "target": a.id, "x": px, "z": pz})
-		else:
-			# Parrying a normal attack: it is turned aside and the attacker is left off balance. The weapon stays in hand,
-			# and the defender is free at once, so the next blow is theirs to choose (and counts as a riposte).
-			_stagger(a, 0.8, -nx * 3, -nz * 3, true)
-			b.state = "idle"; b.t = 0.0
-			w.events.append({"type": "deflect", "id": b.id, "target": a.id, "x": px, "z": pz})
+		_stagger(a, 1.15 if atk.focus else 0.8, -nx * 3, -nz * 3, true)
+		b.state = "idle"; b.t = 0.0
+		w.events.append({"type": "parry" if atk.focus else "deflect", "id": b.id, "target": a.id, "x": px, "z": pz})
 		return
-	if guarding and not atk.focus and not atk.skill:
-		# A held guard stops a normal attack from the front at the cost of guard meter (and a scratch of damage).
-		# A kick, or the blow that empties the meter, breaks the guard and leaves the defender reeling.
-		# a shield makes blocking cheap; a greatsword or axe wears a guard down faster
-		b.guardM -= GUARD_MAX if atk.guardBreak else raw * 2.1 * b.weapon.guardCost * a.weapon.guardDmg
+	if guarding and not atk.skill:
+		# A raised shield stops the blow at the cost of guard meter (and a scratch of damage). A heavy attack takes most of a
+		# full guard at once; a kick, or the blow that empties the meter, knocks the shield aside and leaves the defender reeling.
+		var cost: float = raw * 2.1 * b.shield.cost * a.weapon.guardDmg
+		if atk.focus: cost = 70.0 * b.shield.heavy
+		if atk.guardBreak: cost = GUARD_MAX
+		b.guardM -= cost
 		b.guardRest = 1.3
 		if b.guardM <= 0:
 			b.guardM = 0.0; b.guardRest = 2.2
-			var bd: float = raw * (1.0 if atk.guardBreak else 0.5) * (1 - b.stats.armor)
+			var bd: float = raw * (1.0 if (atk.guardBreak or atk.focus) else 0.5) * (1 - b.stats.armor)
 			b.hp = max(1.0, b.hp - bd)
 			_stagger(b, 1.0, nx * 4, nz * 4)
 			w.events.append({"type": "guardbreak", "id": a.id, "target": b.id, "dmg": bd, "x": px, "z": pz})
@@ -514,7 +513,7 @@ static func _apply_hit(a: Dictionary, b: Dictionary, atk: Dictionary, w: Diction
 			b.hp = max(1.0, b.hp - raw * 0.1 * (1 - b.stats.armor))
 			b.vx = nx * (1.5 + atk.knock * 0.25); b.vz = nz * (1.5 + atk.knock * 0.25)
 			_gain(b, 4)
-			w.events.append({"type": "block", "id": a.id, "target": b.id, "heavy": atk.heavy, "x": px, "z": pz})
+			w.events.append({"type": "block", "id": a.id, "target": b.id, "heavy": atk.heavy or atk.focus, "x": px, "z": pz})
 		return
 	if not atk.focus and armored(b) and not backstab:
 		# A charged strike beats normal attacks: the blow lands for half and does not stop them.

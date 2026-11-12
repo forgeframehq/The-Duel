@@ -5,7 +5,7 @@ extends Node3D
 ## build 20 did it: a swing follows the rules' clock, so what you see is exactly when the hit lands.
 
 const MODELS := {"sun_warlord": "res://models/aurelian.glb", "varek": "res://models/varek.glb", "wuixi": "res://models/wuixi.glb"}
-const FOCUS_GLOW := Color(0.25, 0.6, 1.0)
+const FOCUS_GLOW := Color(1.0, 0.5, 0.12)      # a heavy attack: the weapon glows like hot iron while it is wound up
 
 var def: Dictionary
 var weapon: Dictionary
@@ -36,24 +36,26 @@ var set_kind := "HumanM_"     # which body the movement clips were made for
 var stride := 0.0               # where in the step cycle the legs are, 0 to 1; shared by every movement clip so feet stay in time
 ## How a fighter stands, guards and flinches with each kind of weapon. `guard` is [clip, moment to hold]; a moment of -1 plays it as a loop.
 const STYLES := {
-	"sword": {"stance": "KBS_Ready_Idle_001", "guard": ["Sword_Parry_Backward", 0.4], "flinch": ["Hit_Reaction_1", "Hit_Reaction_to_Waist", "Hit_Chest", "Hit_Head"], "tip": 1.05},
-	"sword_shield": {"stance": "ss_sword_and_shield_idle", "guard": ["ss_sword_and_shield_block_idle", -1.0], "flinch": ["ss_sword_and_shield_impact", "ss_sword_and_shield_impact_2", "ss_sword_and_shield_impact_3"], "tip": 1.05},
-	"greatsword": {"stance": "gs_great_sword_idle", "guard": ["gs_great_sword_blocking_2", 0.45], "flinch": ["gs_great_sword_impact", "gs_great_sword_impact_2", "gs_great_sword_impact_4"], "tip": 1.5},
-	"axe": {"stance": "ax_standing_idle", "guard": ["ax_standing_block_idle", -1.0], "flinch": ["ax_standing_react_large_from_left", "ax_standing_react_large_gut", "ax_standing_block_react_large"], "tip": 1.02},
+	"sword": {"stance": "ss_sword_and_shield_idle", "guard": ["ss_sword_and_shield_block_idle", -1.0], "flinch": ["ss_sword_and_shield_impact", "ss_sword_and_shield_impact_2", "ss_sword_and_shield_impact_3"], "tip": 1.05},
 }
 var style: Dictionary = STYLES.sword
 var kind := "sword"             # which weapon is in hand: sword, katana, divine, sword_shield, greatsword, axe
 var shield: Node3D
-var STANCE := "KBS_Ready_Idle_001"
+var STANCE := "ss_sword_and_shield_idle"
+var shield_id := "wood"
 const WALK := "KBS_Walk_F_001_IP"
+## [clip, metres a second it covers] for travelling forward, left, back, right
+const WALKS := [["ss_sword_and_shield_walk", 1.45], ["ss_sword_and_shield_strafe_2", 1.1], ["ss_sword_and_shield_walk_2", 1.1], ["ss_sword_and_shield_strafe", 1.25]]
+const RUNS := [["ss_sword_and_shield_run", 4.1], ["ss_sword_and_shield_strafe_3", 3.4], ["ss_sword_and_shield_run_2", 4.3], ["ss_sword_and_shield_strafe_4", 3.3]]
 ## movement clips by direction of travel, every 45 degrees from straight ahead round to the left
 const DIRS := ["Run01_Forward", "StrafeRun01_ForwardLeft", "StrafeRun01_Left", "StrafeRun01_BackwardLeft", "Run01_Backward", "StrafeRun01_BackwardRight", "StrafeRun01_Right", "StrafeRun01_ForwardRight"]
 const RUN_SPEED := 4.0          # metres a second the run clips cover; the legs are played faster or slower to match the ground
 const WALK_SPEED := 1.6
 
-func setup(fighter_def: Dictionary, weapon_id := "") -> FighterView:
+func setup(fighter_def: Dictionary, weapon_id := "", shield := "wood") -> FighterView:
 	def = fighter_def
-	kind = weapon_id if weapon_id != "" else def.weapon
+	shield_id = shield
+	kind = weapon_id if weapon_id != "" else "f_sword"
 	weapon = Sim.weapon_of(kind)
 	style = STYLES.get(kind, STYLES.sword)
 	STANCE = style.stance
@@ -68,9 +70,9 @@ func setup(fighter_def: Dictionary, weapon_id := "") -> FighterView:
 	for b in Clips.BONES: bone_ids.append(skeleton.find_bone(b))
 
 	blade_mat = StandardMaterial3D.new()
-	blade_mat.albedo_color = Color(0.86, 0.88, 0.9) if kind == "katana" else Color.WHITE; blade_mat.metallic = 0.85; blade_mat.roughness = 0.28
+	blade_mat.albedo_color = Color(0.86, 0.88, 0.9) if kind == "f_katana" else Color.WHITE; blade_mat.metallic = 0.85; blade_mat.roughness = 0.28
 	blade_mat.emission_enabled = true
-	if kind == "katana": base_emission = Color(0.35, 0.03, 0.05)
+	if kind == "f_katana": base_emission = Color(0.35, 0.03, 0.05)
 	elif def.id == "sun_warlord":
 		blade_mat.albedo_color = Color(1.0, 0.93, 0.72); base_emission = Color(0.14, 0.1, 0.02)
 	blade_mat.emission = base_emission
@@ -93,12 +95,12 @@ func setup(fighter_def: Dictionary, weapon_id := "") -> FighterView:
 	am.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; am.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; am.cull_mode = BaseMaterial3D.CULL_DISABLED
 	aura.material_override = am; aura.position.y = 1.05; aura.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; aura.visible = false; add_child(aura)
 	# the streak a blade leaves through the air, so a slash can be seen and read
-	if not MODELS_W.has(_model_kind()): tip_y = 0.93 if kind == "katana" else style.tip
+	if not MODELS_W.has(_model_kind()): tip_y = 0.93
 	trail = MeshInstance3D.new(); trail.mesh = ImmediateMesh.new(); trail.top_level = true; trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var tm2 := StandardMaterial3D.new(); tm2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; tm2.vertex_color_use_as_albedo = true
 	tm2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; tm2.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; tm2.cull_mode = BaseMaterial3D.CULL_DISABLED
 	trail.material_override = tm2; add_child(trail)
-	if weapon.shield: call_deferred("_add_shield")
+	call_deferred("_add_shield")
 	glow_light = OmniLight3D.new(); glow_light.light_color = FOCUS_GLOW; glow_light.omni_range = 3.5; glow_light.position = Vector3(0, 1.3, 0.5); glow_light.visible = false; add_child(glow_light)
 	return self
 
@@ -109,7 +111,11 @@ func _std(color: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new(); m.albedo_color = color; m.metallic = metal; m.roughness = rough; return m
 
 func _model_kind() -> String:
-	if kind == "greatsword" or kind == "axe" or kind == "katana": return kind
+	match kind:
+		"f_katana": return "katana"
+		"f_mace": return "mace"
+		"f_hammer": return "hammer"
+		"f_dagger": return "dagger"
 	return "divine" if def.id == "sun_warlord" else "sword"
 
 ## The shield sits on the left hand, turned so that in the guard pose it stands upright and faces the enemy.
@@ -117,11 +123,10 @@ func _add_shield() -> void:
 	var hand := BoneAttachment3D.new(); hand.bone_name = "LeftHand"; skeleton.add_child(hand)
 	var holder := Node3D.new(); holder.scale = Vector3.ONE * 100.0; hand.add_child(holder)
 	shield = Node3D.new(); holder.add_child(shield)
-	var use_model := ResourceLoader.exists("res://weapons/Wooden_Shield.fbx")
+	var use_model: bool = SHIELDS_W.has(shield_id)
 	if use_model:
 		var sm := StandardMaterial3D.new(); sm.cull_mode = BaseMaterial3D.CULL_DISABLED
-		var fitted := _fit_shield(sm)
-		shield.add_child(fitted)
+		shield.add_child(_fit_shield(SHIELDS_W[shield_id][0], SHIELDS_W[shield_id][1], sm))
 	var rim := _std(Color(0.5, 0.42, 0.25), 0.8, 0.4)
 	var face := _std(Color(0.2, 0.035, 0.035) if def.id != "sun_warlord" else Color(0.75, 0.72, 0.66), 0.25, 0.55)
 	# a kite shield: a rounded top narrowing to a point, gently curved round the arm
@@ -156,8 +161,10 @@ func _add_shield() -> void:
 ## in the hand (metres), and whether the heavy end is far from the grip (a hammer) or the grip sits behind a crossguard (a sword).
 const MODELS_W := {
 	"sword": ["Shortsword", 1.02, false], "divine": ["Shortsword", 1.08, false],
-	"greatsword": ["Claymore", 1.6, false], "axe": ["Warhammer", 1.15, true],
+	"mace": ["Iron_Mace", 0.86, true], "hammer": ["Hammer", 0.92, true], "dagger": ["Dagger_1", 0.56, false],
 }
+## shield models: file and height in metres ("kite" is built in code)
+const SHIELDS_W := {"wood": ["Wooden_Shield", 0.8], "buckler": ["Buckler", 0.46]}
 
 ## Load a weapon model and stand it the way the game holds weapons: grip at the origin, business end up +Y, the flat of the
 ## blade facing sideways. The pack's files come in assorted sizes and directions, so this is worked out from the shape itself.
@@ -257,7 +264,7 @@ func _build_weapon(kind: String) -> Node3D:
 			var arm := _part(cyl.call(0.007, 0.015, span), mat, Vector3(0, 0.115 + sweep * span * 0.5, side * (0.03 + span * 0.5)))
 			arm.rotation.x = side * (PI / 2 - sweep); g.add_child(arm)
 			g.add_child(_part(ball.call(0.012), mat, Vector3(0, 0.115 + sweep * span, side * (0.03 + span))))
-	if kind == "greatsword":
+	if kind == "greatsword_old":
 		# A two-handed sword: a long broad blade, a wide guard and a grip long enough for both hands.
 		g.add_child(_part(_blade(1.32, 0.075, 0.016, 0.82, 0.09), blade_mat, Vector3(0, 0.2, 0)))
 		g.add_child(_part(_blade(0.8, 0.018, 0.018, 0.9), _std(Color(0.25, 0.26, 0.28), 0.9, 0.4), Vector3(0, 0.21, 0)))
@@ -341,7 +348,7 @@ func _pose(f: Dictionary, dt: float) -> void:
 				var an: Array = a.anim
 				var t: float = an[1] + (an[2] - an[1]) * (f.t / a.windup) if f.t < a.windup else an[2] + (an[3] - an[2]) * min(1.0, (f.t - a.windup) / (a.active + a.recover))
 				# Blend in a touch slower at the very start of a swing, so one move flows into the next instead of snapping.
-				_show(want, an[0], t); fade = 13.0 if f.t < 0.1 else 22.0
+				_show(want, an[0], t); fade = 11.0 if f.t < 0.12 else 20.0
 			"charge":
 				# Wound back and held, trembling, until the button is let go.
 				var atk: Dictionary = weapon.focusH if f.charge == "h" else weapon.focusV
@@ -374,24 +381,23 @@ func _pose(f: Dictionary, dt: float) -> void:
 				else:
 					_show(want, "Shot_and_Fall_Backward", min(clips["Shot_and_Fall_Backward"].length - 0.05, 0.7 + f.t * 1.5)); fade = 14.0
 			_:
-				# Standing ready, a walk and an eight-way run, chosen by how fast and which way the fighter is travelling.
-				# The legs are played at the pace that matches the ground, so the feet grip instead of gliding.
+				# Standing ready, and the sword-and-shield walk or run in whichever of four directions the fighter is travelling.
+				# All one motion-captured set, so stance, steps and attacks flow into each other; the legs keep pace with the ground.
 				var left: float = f.vx * cos(f.yaw) - f.vz * sin(f.yaw)
-				var stand: float = clampf(1 - speed / 0.9, 0, 1)
-				var ahead: float = clampf(fwd / max(speed, 0.01), 0, 1)
-				var walk: float = (1 - stand) * clampf((2.6 - speed) / 1.0, 0, 1) * ahead      # only walking forward has a walk of its own
-				var run: float = 1 - stand - walk
+				var stand: float = clampf(1 - speed / 0.7, 0, 1)
+				var moving := 1 - stand
 				_loop(want, STANCE, stand, 1.0, dt)
-				var rate: float = clampf(speed / RUN_SPEED, 0.55, 1.5) / 0.6 if run > walk else clampf(speed / WALK_SPEED, 0.6, 1.6) / clips[WALK].length
-				stride = fposmod(stride + dt * rate, 1.0)
-				if walk > 0: _show(want, WALK, stride * clips[WALK].length, walk)
-				if run > 0:
-					var a: float = fposmod(atan2(left, fwd), TAU) / (TAU / 8)
-					var i := int(a) % 8
+				if moving > 0:
+					var running := speed > 2.4
+					var set: Array = RUNS if running else WALKS
+					var a: float = fposmod(atan2(left, fwd), TAU) / (TAU / 4)
+					var i := int(a) % 4
 					var k2: float = a - int(a)
-					for pair in [[i, 1 - k2], [(i + 1) % 8, k2]]:
-						var clip: String = set_kind + DIRS[pair[0]]
-						if pair[1] > 0: _show(want, clip, stride * clips[clip].length, want.get(clip, 0.0) + run * pair[1])
+					var lead: Array = set[i] if k2 < 0.5 else set[(i + 1) % 4]
+					stride = fposmod(stride + dt * clampf(speed / lead[1], 0.6, 1.5) / clips[lead[0]].length, 1.0)
+					for pair in [[i, 1 - k2], [(i + 1) % 4, k2]]:
+						var clip: String = set[pair[0]][0]
+						if pair[1] > 0: _show(want, clip, stride * clips[clip].length, want.get(clip, 0.0) + moving * pair[1])
 	last_state = f.state; last_t = f.t
 	var k: float = min(1.0, fade * dt)
 	for clip in want:
@@ -456,7 +462,7 @@ func update(f: Dictionary, dt: float) -> void:
 	clock += dt
 	blade_mat.emission = base_emission.lerp(FOCUS_GLOW, min(1.0, focus_mix * 1.5))
 	blade_mat.emission_energy_multiplier = 1.0 + focus_mix * 5.0
-	aura.visible = focus_mix > 0.02
+	aura.visible = false
 	(aura.material_override as StandardMaterial3D).albedo_color.a = focus_mix * (0.13 + 0.05 * sin(clock * 16))
 	glow_light.light_energy = focus_mix * 3.0; glow_light.visible = focus_mix > 0.02
 	var grow := 1 + 0.12 * sin(clock * 9)
@@ -495,9 +501,9 @@ func _trail(f: Dictionary, dt: float) -> void:
 	im.surface_end()
 
 ## The wooden shield model, stood upright: tallest side up, thinnest side front to back, about 0.8 m tall.
-func _fit_shield(mat: StandardMaterial3D) -> Node3D:
+func _fit_shield(file: String, height: float, mat: StandardMaterial3D) -> Node3D:
 	var keep := tip_y
-	var scene: Node3D = (load("res://weapons/Wooden_Shield.fbx") as PackedScene).instantiate()
+	var scene: Node3D = (load("res://weapons/%s.fbx" % file) as PackedScene).instantiate()
 	var mi: MeshInstance3D = scene.find_children("*", "MeshInstance3D", true, false)[0]
 	var xf := _chain(scene, mi)
 	var lo := Vector3.ONE * 1e9; var hi := Vector3.ONE * -1e9
@@ -509,12 +515,12 @@ func _fit_shield(mat: StandardMaterial3D) -> Node3D:
 	var y := Vector3.ZERO; y[tall] = 1.0
 	var z := Vector3.ZERO; z[thin] = 1.0
 	var basis := Basis(y.cross(z), y, z).inverse()
-	var k := 0.8 / ext[tall]
+	var k := height / ext[tall]
 	scene.transform = Transform3D(basis.scaled(Vector3.ONE * k), -(basis * ((lo + hi) / 2.0)) * k)
-	mat.albedo_texture = load("res://weapons/Wooden_Shield_BaseColor.png")
-	mat.normal_enabled = true; mat.normal_texture = load("res://weapons/Wooden_Shield_Normal.png")
-	mat.metallic = 1.0; mat.metallic_texture = load("res://weapons/Wooden_Shield_Metallic.png")
-	mat.roughness = 1.0; mat.roughness_texture = load("res://weapons/Wooden_Shield_Roughness.png")
+	mat.albedo_texture = load("res://weapons/%s_BaseColor.png" % file)
+	mat.normal_enabled = true; mat.normal_texture = load("res://weapons/%s_Normal.png" % file)
+	mat.metallic = 0.45; mat.metallic_texture = load("res://weapons/%s_Metallic.png" % file)
+	mat.roughness = 1.0; mat.roughness_texture = load("res://weapons/%s_Roughness.png" % file)
 	mi.material_override = mat
 	tip_y = keep
 	var holder := Node3D.new(); holder.add_child(scene)

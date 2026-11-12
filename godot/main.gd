@@ -2,7 +2,7 @@ extends Node3D
 ## The Duel, Godot edition. This script runs the whole game: the menu, a match, the camera, sounds and effects.
 ## The rules themselves are in scripts/sim.gd; this only feeds them the player's thumbs and shows what they decide.
 
-const VERSION := "0.8"
+const VERSION := "0.9"
 ## Camera angles. The game offers two, switched with the button under the clock: Shoulder (index 3; close behind the player, the
 ## sword arm in frame, the default) and Side-on (index 4). The first three are kept for testing (DUEL_CAM=0..2). dist: how far behind the player; side: how far off the shoulder; pitch: how steeply it
 ## looks down. "Side-on" stands off to one side of the two fighters instead, like a classic fighting game.
@@ -32,7 +32,12 @@ var pick := int(OS.get_environment("DUEL_PICK")) if OS.get_environment("DUEL_PIC
 var foe := 0
 var level := "normal"
 ## The weapons a player can give any fighter. "sword" is drawn as each fighter's own blade.
-const ARMS := ["sword", "sword_shield", "katana", "greatsword", "axe"]
+const ARMS := ["f_sword", "f_katana", "f_mace", "f_hammer", "f_dagger"]
+const SHIELDS := ["wood", "buckler", "kite"]
+var shield_pick := OS.get_environment("DUEL_SHIELD") if OS.get_environment("DUEL_SHIELD") != "" else "wood"
+var shields := ["wood", "wood"]
+## Fencing is fought at a walk and a short run, not a sprint: fighters move at this share of their listed speed.
+const PACE := 0.72
 var arm := OS.get_environment("DUEL_ARM")               # the weapon the player has chosen ("" = the fighter's own)
 var arms := ["", ""]        # what each side carries in the current match
 var low := false
@@ -95,7 +100,7 @@ func _strip(names: String) -> void:
 		if part.size() > 1:
 			from = float(part[1].split("-")[0]); to = float(part[1].split("-")[1])
 		for i in n:
-			var v := FighterView.new().setup(roster[pick], OS.get_environment("DUEL_ARM")); add_child(v)
+			var v := FighterView.new().setup(roster[pick], OS.get_environment("DUEL_ARM"), shield_pick); add_child(v)
 			v.position = Vector3(-(i - (n - 1) / 2.0) * 1.9, 0, r * -4.0); v.rotation.y = PI + float(OS.get_environment("DUEL_TURN") if OS.get_environment("DUEL_TURN") != "" else "0.6")
 			v.weights = {rows[r]: 1.0}; v.times = {rows[r]: from + (to - from) * (i + 0.5) / n}; v._apply()
 	cam.fov = 30.0; cam.position = Vector3(0, 1.5 + rows.size() * 0.9, -8.5 - rows.size() * 2.6); cam.look_at(Vector3(0, 0.95, -(rows.size() - 1) * 2.0))
@@ -178,17 +183,23 @@ func _build_menu(layer: CanvasLayer) -> void:
 	var wb := _button("Weapon", 20, func() -> void:
 		var cur := ARMS.find(_arm_of(pick)); arm = ARMS[(cur + 1) % ARMS.size()]; _refresh_menu())
 	wb.name = "Weaponb"; right.add_child(wb)
+	var sb := _button("Shield", 20, func() -> void:
+		shield_pick = SHIELDS[(SHIELDS.find(shield_pick) + 1) % SHIELDS.size()]; _refresh_menu())
+	sb.name = "Shieldb"
+	var kit := HBoxContainer.new(); kit.add_theme_constant_override("separation", 10); right.add_child(kit)
+	wb.get_parent().remove_child(wb); kit.add_child(wb); kit.add_child(sb)
+	wb.size_flags_horizontal = Control.SIZE_EXPAND_FILL; sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var go := _button("FIGHT", 40, _start_match, true); go.custom_minimum_size = Vector2(0, 84); right.add_child(go)
 
 ## The weapon a fighter will carry: the player's choice for their own fighter, otherwise the fighter's usual one.
 func _arm_of(i: int) -> String:
-	var own: String = roster[i].weapon
-	if own == "divine": own = "sword"
+	var own := "f_katana" if roster[i].weapon == "katana" else "f_sword"
 	return arm if (arm != "" and i == pick) else own
 
 func _refresh_menu() -> void:
 	var d: Dictionary = roster[pick]
-	menu.find_child("Weaponb", true, false).text = "Weapon:  " + Sim.weapon_of(_arm_of(pick)).label
+	menu.find_child("Weaponb", true, false).text = Sim.weapon_of(_arm_of(pick)).label
+	menu.find_child("Shieldb", true, false).text = Sim.shield_of(shield_pick).label
 	var panel := menu.get_node("Panel")
 	panel.get_node("Name").text = d.name
 	panel.get_node("Origin").text = d.origin + "   ·   " + Sim.skill_of(d.skill).name
@@ -205,7 +216,7 @@ func _refresh_menu() -> void:
 		b.add_theme_stylebox_override("normal", _style(Color(0.75, 0.55, 0.15, 0.85) if on else Color(0, 0, 0, 0.45), Color(1, 0.85, 0.5, 0.9) if on else Color(1, 1, 1, 0.25)))
 	# the chosen fighter stands in the meadow behind the menu
 	if preview: preview.queue_free()
-	preview = FighterView.new().setup(d, _arm_of(pick)); add_child(preview)
+	preview = FighterView.new().setup(d, _arm_of(pick), shield_pick); add_child(preview)
 	preview_f = Sim.create_world({"R": Arena.R, "spawns": [{"x": 0.0, "z": 0.0, "yaw": PI - 0.35}, {"x": 0.0, "z": 50.0, "yaw": 0.0}]}, d.stats, d.stats).fighters[0]
 	preview.snap(preview_f)
 
@@ -244,13 +255,14 @@ func _start_match() -> void:
 	foe = others[randi() % others.size()]
 	# the rival turns up with a weapon of its own choosing
 	arms = [_arm_of(pick), ARMS[randi() % ARMS.size()] if OS.get_environment("DUEL_FOE_ARM") == "" else OS.get_environment("DUEL_FOE_ARM")]
-	var sa: Dictionary = roster[pick].stats.duplicate(); sa.weapon = arms[0]
-	var sb: Dictionary = roster[foe].stats.duplicate(); sb.weapon = arms[1]
+	shields = [shield_pick, SHIELDS[randi() % SHIELDS.size()]]
+	var sa: Dictionary = roster[pick].stats.duplicate(); sa.weapon = arms[0]; sa.shield = shields[0]; sa.speed *= PACE
+	var sb: Dictionary = roster[foe].stats.duplicate(); sb.weapon = arms[1]; sb.shield = shields[1]; sb.speed *= PACE
 	world = Sim.create_world({"R": Arena.R, "spawns": Arena.SPAWNS}, sa, sb)
 	rival = Rival.new(level, randi())
 	auto_ai = Rival.new("hard", randi())
 	for i in 2:
-		var v := FighterView.new().setup(roster[pick if i == 0 else foe], arms[i]); add_child(v); views.append(v)
+		var v := FighterView.new().setup(roster[pick if i == 0 else foe], arms[i], shields[i]); add_child(v); views.append(v)
 	hud.world = world; hud.names = [roster[pick].short, roster[foe].short]; hud.shown_hp = [1.0, 1.0]
 	cam_yaw = 0.0; acc = 0.0; hitstop = 0.0
 	mode = "fight"; menu.visible = false; result.visible = false; hud.visible = true; pad.visible = not auto; cam_button.visible = true
@@ -390,11 +402,11 @@ func _on_event(ev: Dictionary) -> void:
 		"hit":
 			var big: bool = ev.heavy or ev.kill
 			play("hit_heavy" if big else ("hit1" if randf() < 0.5 else "hit2"), -5 if big else -8)
-			_spark(ev.x, ev.z, Color(0.45, 0.75, 1.0) if ev.blue else Color(1.0, 0.75, 0.35), 26 if big else 12, 6.0 if big else 4.0, 0.3 if ev.ground else 1.15)
+			_spark(ev.x, ev.z, Color(1.0, 0.45, 0.15) if ev.blue else Color(1.0, 0.8, 0.45), 26 if big else 12, 6.0 if big else 4.0, 0.3 if ev.ground else 1.15)
 			hitstop = max(hitstop, 0.09 if big else 0.045)
 			shake = max(shake, 0.9 if big else 0.3)
 			if ev.kill: play("death", -6)
-			elif ev.launch and mine: hud.say_move("Rising Fang  ·  keep hitting!")
+			elif ev.riposte and mine: hud.say_move("Riposte!")
 		"block":
 			play("block1" if randf() < 0.5 else "block2", -8); _spark(ev.x, ev.z, Color(0.9, 0.95, 1.0), 8, 3.0); hitstop = max(hitstop, 0.03)
 		"armor":
@@ -404,10 +416,10 @@ func _on_event(ev: Dictionary) -> void:
 			hud.say("GUARD BROKEN", 0.8, Color(1.0, 0.6, 0.3))
 		"deflect":
 			play("parry", -5); _spark(ev.x, ev.z, Color(1, 1, 1), 22, 6.0); hitstop = max(hitstop, 0.1); shake = max(shake, 0.5)
-			hud.say("DEFLECT", 0.7, Color(0.8, 0.92, 1.0))
+			hud.say("PARRY" if ev.id == 0 else "PARRIED", 0.7, Color(0.8, 0.92, 1.0))
 		"parry":
-			play("parry", -3, 0.85); _spark(ev.x, ev.z, Color(0.5, 0.8, 1.0), 40, 8.0); hitstop = max(hitstop, 0.16); shake = max(shake, 1.0)
-			hud.say("PARRY!", 0.9, Color(0.5, 0.8, 1.0))
+			play("parry", -3, 0.85); _spark(ev.x, ev.z, Color(1.0, 0.85, 0.5), 40, 8.0); hitstop = max(hitstop, 0.16); shake = max(shake, 1.0)
+			hud.say("PARRY!" if ev.id == 0 else "PARRIED!", 0.9, Color(1.0, 0.8, 0.4))
 		"clash":
 			play("parry", -6, 1.2); _spark(ev.x, ev.z, Color(1.0, 0.9, 0.6), 24, 6.0); hitstop = max(hitstop, 0.08); shake = max(shake, 0.5)
 		"land":
