@@ -37,7 +37,7 @@ void fragment() {
 	// a photo of moss gives the lawn its fine grain: only its light and dark are used, the colour stays ours
 	vec3 moss = texture(moss_tex, wpos.xz * 0.35).rgb;
 	float grain = clamp(0.55 + dot(moss, vec3(0.3, 0.6, 0.1)) * 24.0, 0.72, 1.35);      // the photo is very dark: about 0.02 on average
-	ALBEDO = mix(grass * grain * 1.25, dirt, worn * 0.75);
+	ALBEDO = mix(grass * grain * 1.45, dirt, worn * 0.75);
 	ROUGHNESS = 0.95;
 }
 """
@@ -65,7 +65,7 @@ void vertex() {
 	NORMAL = vec3(0.0, 1.0, 0.0);
 }
 void fragment() {
-	ALBEDO = mix(vec3(0.028, 0.10, 0.012), vec3(0.17, 0.38, 0.05), tip) * COLOR.rgb;
+	ALBEDO = mix(vec3(0.04, 0.14, 0.018), vec3(0.19, 0.42, 0.06), tip) * COLOR.rgb;
 	// lit as if every blade faced the sky, front and back alike, so the lawn reads as one soft surface instead of dark spikes
 	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
 	ROUGHNESS = 0.9;
@@ -129,7 +129,7 @@ func _sky() -> void:
 		mat.ground_bottom_color = Color(0.22, 0.30, 0.16); mat.ground_horizon_color = Color(0.70, 0.78, 0.76)
 		sky.sky_material = mat
 	env.background_mode = Environment.BG_SKY; env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY; env.ambient_light_energy = 0.5
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY; env.ambient_light_energy = 0.62
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC; env.tonemap_white = 4.0
 	# the look: a clear, vivid summer day. Strong colour, deep shadows, almost no haze.
 	env.adjustment_enabled = true; env.adjustment_contrast = 1.12; env.adjustment_saturation = 1.16
@@ -224,10 +224,6 @@ func _scenery() -> void:
 		var d := R + 1.5 + _hash(i * 4.3 + 1) * 16.0
 		_place(bush_f, sin(a) * d, cos(a) * d, _hash(i * 6.1) * TAU, 1.0 + _hash(i * 3.3) * 1.3, -0.1, d < R + 10)
 	# low things strewn through the lawn: tufts of longer grass, clover, and drifts of flowers
-	_strew(N + "Grass_Common_Short.gltf", 2600, 5.0, R + 12.0, 0.16, 0.3, 11, false, Color(0.55, 1.15, 0.4))
-	_strew(N + "Grass_Common_Tall.gltf", 700, 10.0, R + 14.0, 0.26, 0.48, 12, false, Color(0.55, 1.15, 0.4))
-	_strew(N + "Grass_Wispy_Short.gltf", 600, 6.0, R + 10.0, 0.18, 0.32, 13, false, Color(0.55, 1.15, 0.4))
-	_strew(N + "Clover_1.gltf", 500, 4.0, R + 6.0, 0.12, 0.22, 14)
 	_strew(N + "Flower_3_Group.gltf", 90, 7.0, R + 10.0, 0.35, 0.6, 15, true)
 	_strew(N + "Flower_4_Group.gltf", 60, 7.0, R + 10.0, 0.35, 0.6, 16, true)
 

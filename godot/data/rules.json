@@ -75,9 +75,9 @@
      "name": "h3",
      "anim": [
       "Sword_Regular_Combo",
-      1.05,
+      1.17,
       1.53,
-      2.3
+      2.25
      ],
      "windup": 0.24,
      "active": 0.12,
@@ -111,9 +111,9 @@
      "name": "v1",
      "anim": [
       "Sword_Heavy_Combo",
-      2.1,
+      2.2249999999999996,
       2.57,
-      3.2
+      3.1399999999999997
      ],
      "windup": 0.23,
      "active": 0.12,
@@ -181,9 +181,9 @@
      "name": "sweep",
      "anim": [
       "Sword_Regular_Combo",
-      1.05,
+      1.17,
       1.53,
-      2.3
+      2.25
      ],
      "windup": 0.24,
      "active": 0.12,
@@ -251,9 +251,9 @@
      "launch": true,
      "anim": [
       "Charged_Upward_Slash",
-      0.55,
+      0.6000000000000001,
       1.05,
-      1.7
+      1.6800000000000002
      ],
      "windup": 0.3,
      "active": 0.12,
@@ -288,7 +288,7 @@
       "Double_Blade_Spin",
       0.55,
       0.98,
-      2
+      1.85
      ],
      "windup": 0.32,
      "active": 0.14,
@@ -323,7 +323,7 @@
       "Sword_Dash",
       0,
       0.3,
-      1
+      0.99
      ],
      "windup": 0.22,
      "active": 0.12,
@@ -356,9 +356,9 @@
      "back": 6.5,
      "anim": [
       "Dodge_and_Counter",
-      2.25,
+      2.37,
       2.97,
-      3.7
+      3.6
      ],
      "windup": 0.4,
      "active": 0.12,
@@ -391,7 +391,7 @@
      "heavy": true,
      "anim": [
       "Jump_Attack",
-      1.55,
+      1.77,
       2.4,
       3.1
      ],
@@ -425,7 +425,7 @@
      "guardBreak": true,
      "anim": [
       "Spartan_Kick",
-      0.2,
+      0.20999999999999996,
       0.57,
       1.1
      ],
@@ -458,9 +458,9 @@
     "launch": true,
     "anim": [
      "Charged_Upward_Slash",
-     0.55,
+     0.6000000000000001,
      1.05,
-     1.7
+     1.6800000000000002
     ],
     "windup": 0.3,
     "active": 0.12,
@@ -492,7 +492,7 @@
     "heavy": true,
     "anim": [
      "Charged_Slash",
-     0.8,
+     0.8699999999999999,
      1.17,
      2
     ],
@@ -526,7 +526,7 @@
     "heavy": true,
     "anim": [
      "Charged_Ground_Slam",
-     1.1,
+     1.3299999999999998,
      1.66,
      2.7
     ],
@@ -558,7 +558,7 @@
     "name": "riposte",
     "anim": [
      "Counterstrike",
-     2.05,
+     2.16,
      2.37,
      3
     ],
@@ -664,9 +664,9 @@
      "name": "h3",
      "anim": [
       "Sword_Regular_Combo",
-      1.05,
+      1.17,
       1.53,
-      2.3
+      2.25
      ],
      "windup": 0.24,
      "active": 0.12,
@@ -700,9 +700,9 @@
      "name": "v1",
      "anim": [
       "Sword_Heavy_Combo",
-      2.1,
+      2.2249999999999996,
       2.57,
-      3.2
+      3.1399999999999997
      ],
      "windup": 0.23,
      "active": 0.12,
@@ -770,9 +770,9 @@
      "name": "sweep",
      "anim": [
       "Sword_Regular_Combo",
-      1.05,
+      1.17,
       1.53,
-      2.3
+      2.25
      ],
      "windup": 0.24,
      "active": 0.12,
@@ -840,9 +840,9 @@
      "launch": true,
      "anim": [
       "Charged_Upward_Slash",
-      0.55,
+      0.6000000000000001,
       1.05,
-      1.7
+      1.6800000000000002
      ],
      "windup": 0.3,
      "active": 0.12,
@@ -877,7 +877,7 @@
       "Double_Blade_Spin",
       0.55,
       0.98,
-      2
+      1.85
      ],
      "windup": 0.32,
      "active": 0.14,
@@ -912,7 +912,7 @@
       "Sword_Dash",
       0,
       0.3,
-      1
+      0.99
      ],
      "windup": 0.22,
      "active": 0.12,
@@ -945,9 +945,9 @@
      "back": 6.5,
      "anim": [
       "Dodge_and_Counter",
-      2.25,
+      2.37,
       2.97,
-      3.7
+      3.6
      ],
      "windup": 0.4,
      "active": 0.12,
@@ -980,7 +980,7 @@
      "heavy": true,
      "anim": [
       "Jump_Attack",
-      1.55,
+      1.77,
       2.4,
       3.1
      ],
@@ -1014,7 +1014,7 @@
      "guardBreak": true,
      "anim": [
       "Spartan_Kick",
-      0.2,
+      0.20999999999999996,
       0.57,
       1.1
      ],
@@ -1047,9 +1047,9 @@
     "launch": true,
     "anim": [
      "Charged_Upward_Slash",
-     0.55,
+     0.6000000000000001,
      1.05,
-     1.7
+     1.6800000000000002
     ],
     "windup": 0.3,
     "active": 0.12,
@@ -1081,7 +1081,7 @@
     "heavy": true,
     "anim": [
      "Charged_Slash",
-     0.8,
+     0.8699999999999999,
      1.17,
      2
     ],
@@ -1115,7 +1115,7 @@
     "heavy": true,
     "anim": [
      "Charged_Ground_Slam",
-     1.1,
+     1.3299999999999998,
      1.66,
      2.7
     ],
@@ -1147,7 +1147,7 @@
     "name": "riposte",
     "anim": [
      "Counterstrike",
-     2.05,
+     2.16,
      2.37,
      3
     ],
@@ -1253,7 +1253,7 @@
      "name": "h3",
      "anim": [
       "Sword_Regular_Combo",
-      1.05,
+      1.116,
       1.53,
       2.3
      ],
@@ -1289,9 +1289,9 @@
      "name": "v1",
      "anim": [
       "Sword_Heavy_Combo",
-      2.1,
+      2.17325,
       2.57,
-      3.2
+      3.1984999999999997
      ],
      "windup": 0.2645,
      "active": 0.12,
@@ -1359,7 +1359,7 @@
      "name": "sweep",
      "anim": [
       "Sword_Regular_Combo",
-      1.05,
+      1.116,
       1.53,
       2.3
      ],
@@ -1466,7 +1466,7 @@
       "Double_Blade_Spin",
       0.55,
       0.98,
-      2
+      1.85
      ],
      "windup": 0.32,
      "active": 0.14,
@@ -1534,9 +1534,9 @@
      "back": 6.5,
      "anim": [
       "Dodge_and_Counter",
-      2.25,
+      2.2800000000000002,
       2.97,
-      3.7
+      3.6675000000000004
      ],
      "windup": 0.45999999999999996,
      "active": 0.12,
@@ -1569,7 +1569,7 @@
      "heavy": true,
      "anim": [
       "Jump_Attack",
-      1.55,
+      1.6755,
       2.4,
       3.1
      ],
@@ -1670,7 +1670,7 @@
     "heavy": true,
     "anim": [
      "Heavy_Hammer_Swing",
-     1.05,
+     1.185,
      1.53,
      1.8
     ],
@@ -1704,7 +1704,7 @@
     "heavy": true,
     "anim": [
      "Charged_Ground_Slam",
-     1.1,
+     1.2805,
      1.66,
      2.7
     ],
@@ -1736,7 +1736,7 @@
     "name": "riposte",
     "anim": [
      "Counterstrike",
-     2.05,
+     2.16,
      2.37,
      3
     ],
@@ -1808,7 +1808,7 @@
      "name": "h2",
      "anim": [
       "Right_Hand_Sword_Slash",
-      0.1,
+      0.10999999999999999,
       0.53,
       1.1
      ],
@@ -1844,7 +1844,7 @@
      "name": "v1",
      "anim": [
       "Thrust_Slash",
-      0.3,
+      0.33999999999999997,
       0.73,
       1.1
      ],
@@ -1878,7 +1878,7 @@
      "name": "v2",
      "anim": [
       "Thrust_Slash",
-      0.3,
+      0.33999999999999997,
       0.73,
       1.1
      ],
@@ -1914,7 +1914,7 @@
      "name": "sweep",
      "anim": [
       "Right_Hand_Sword_Slash",
-      0.1,
+      0.10999999999999999,
       0.53,
       1.1
      ],
@@ -1984,9 +1984,9 @@
      "launch": true,
      "anim": [
       "Charged_Upward_Slash",
-      0.55,
+      0.6000000000000001,
       1.05,
-      1.7
+      1.6800000000000002
      ],
      "windup": 0.3,
      "active": 0.12,
@@ -2021,7 +2021,7 @@
       "Double_Blade_Spin",
       0.55,
       0.98,
-      2
+      1.85
      ],
      "windup": 0.32,
      "active": 0.14,
@@ -2056,7 +2056,7 @@
       "Sword_Dash",
       0,
       0.3,
-      1
+      0.99
      ],
      "windup": 0.22,
      "active": 0.12,
@@ -2089,9 +2089,9 @@
      "back": 6.5,
      "anim": [
       "Dodge_and_Counter",
-      2.25,
+      2.37,
       2.97,
-      3.7
+      3.6
      ],
      "windup": 0.4,
      "active": 0.12,
@@ -2124,7 +2124,7 @@
      "heavy": true,
      "anim": [
       "Jump_Attack",
-      1.55,
+      1.77,
       2.4,
       3.1
      ],
@@ -2158,7 +2158,7 @@
      "guardBreak": true,
      "anim": [
       "Spartan_Kick",
-      0.2,
+      0.20999999999999996,
       0.57,
       1.1
      ],
@@ -2191,9 +2191,9 @@
     "launch": true,
     "anim": [
      "Charged_Upward_Slash",
-     0.55,
+     0.6000000000000001,
      1.05,
-     1.7
+     1.6800000000000002
     ],
     "windup": 0.3,
     "active": 0.12,
@@ -2225,7 +2225,7 @@
     "heavy": true,
     "anim": [
      "Charged_Slash",
-     0.8,
+     0.8699999999999999,
      1.17,
      2
     ],
@@ -2259,7 +2259,7 @@
     "heavy": true,
     "anim": [
      "Charged_Ground_Slam",
-     1.1,
+     1.3299999999999998,
      1.66,
      2.7
     ],
@@ -2291,7 +2291,7 @@
     "name": "riposte",
     "anim": [
      "Thrust_Slash",
-     0.45,
+     0.52,
      0.73,
      1.1
     ],
@@ -2328,10 +2328,10 @@
     {
      "name": "h1",
      "anim": [
-      "KBS_Sword_ATK_Combo_01_001_IP",
-      0.2,
-      0.73,
-      1.1
+      "Sword_Regular_Combo",
+      0.02,
+      0.23,
+      0.48
      ],
      "windup": 0.1496,
      "active": 0.12,
@@ -2362,10 +2362,10 @@
     {
      "name": "h2",
      "anim": [
-      "KBS_Sword_ATK_Combo_01_001_IP",
-      1.1,
-      1.53,
-      2
+      "Sword_Regular_Combo",
+      0.48,
+      0.7,
+      1
      ],
      "windup": 0.1496,
      "active": 0.12,
@@ -2396,10 +2396,10 @@
     {
      "name": "h3",
      "anim": [
-      "KBS_Sword_ATK_Combo_01_001_IP",
-      2,
-      2.5,
-      3.2
+      "Sword_Regular_Combo",
+      1.2132,
+      1.53,
+      2.1852
      ],
      "windup": 0.2112,
      "active": 0.12,
@@ -2432,10 +2432,10 @@
     {
      "name": "v1",
      "anim": [
-      "Weapon_Combo_2",
-      1.6,
-      2.03,
-      2.5
+      "Sword_Heavy_Combo",
+      2.2664,
+      2.57,
+      3.0932
      ],
      "windup": 0.2024,
      "active": 0.12,
@@ -2466,10 +2466,10 @@
     {
      "name": "v2",
      "anim": [
-      "KBS_Sword_ATK_Combo_01_001_IP",
-      3.3,
-      3.93,
-      4.6
+      "Sword_Heavy_Combo",
+      0.1,
+      0.4,
+      0.8
      ],
      "windup": 0.22,
      "active": 0.12,
@@ -2502,10 +2502,10 @@
     "HHH": {
      "name": "sweep",
      "anim": [
-      "KBS_Sword_ATK_Combo_01_001_IP",
-      2,
-      2.5,
-      3.2
+      "Sword_Regular_Combo",
+      1.2132,
+      1.53,
+      2.1852
      ],
      "windup": 0.2112,
      "active": 0.12,
@@ -2573,9 +2573,9 @@
      "launch": true,
      "anim": [
       "Charged_Upward_Slash",
-      0.55,
+      0.654,
       1.05,
-      1.7
+      1.6260000000000001
      ],
      "windup": 0.264,
      "active": 0.12,
@@ -2610,7 +2610,7 @@
       "Double_Blade_Spin",
       0.55,
       0.98,
-      2
+      1.85
      ],
      "windup": 0.32,
      "active": 0.14,
@@ -2643,9 +2643,9 @@
      "solo": true,
      "anim": [
       "Sword_Dash",
-      0,
+      0.009599999999999997,
       0.3,
-      1
+      0.9288000000000001
      ],
      "windup": 0.1936,
      "active": 0.12,
@@ -2678,9 +2678,9 @@
      "back": 6.5,
      "anim": [
       "Dodge_and_Counter",
-      2.25,
+      2.442,
       2.97,
-      3.7
+      3.5460000000000003
      ],
      "windup": 0.35200000000000004,
      "active": 0.12,
@@ -2713,7 +2713,7 @@
      "heavy": true,
      "anim": [
       "Jump_Attack",
-      1.55,
+      1.8456,
       2.4,
       3.1
      ],
@@ -2747,7 +2747,7 @@
      "guardBreak": true,
      "anim": [
       "Spartan_Kick",
-      0.2,
+      0.2532,
       0.57,
       1.1
      ],
@@ -2780,9 +2780,9 @@
     "launch": true,
     "anim": [
      "Charged_Upward_Slash",
-     0.55,
+     0.654,
      1.05,
-     1.7
+     1.6260000000000001
     ],
     "windup": 0.264,
     "active": 0.12,
@@ -2814,7 +2814,7 @@
     "heavy": true,
     "anim": [
      "Charged_Slash",
-     0.8,
+     0.9059999999999999,
      1.17,
      2
     ],
@@ -2848,9 +2848,9 @@
     "heavy": true,
     "anim": [
      "Charged_Ground_Slam",
-     1.1,
+     1.3696,
      1.66,
-     2.7
+     2.662
     ],
     "hold": 1.1,
     "windup": 0.1936,
@@ -2880,7 +2880,7 @@
     "name": "riposte",
     "anim": [
      "Counterstrike",
-     2.05,
+     2.16,
      2.37,
      3
     ],

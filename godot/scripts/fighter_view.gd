@@ -29,6 +29,9 @@ var dropped: Node3D
 var aura: MeshInstance3D
 var tilt: Node3D
 var glow_light: OmniLight3D
+var trail: MeshInstance3D
+var trail_pts: Array = []        # [base, tip, age] of the blade over the last moments of a swing
+var tip_y := 1.05
 var set_kind := "HumanM_"     # which body the movement clips were made for
 var stride := 0.0               # where in the step cycle the legs are, 0 to 1; shared by every movement clip so feet stay in time
 const STANCE := "KBS_Ready_Idle_001"
@@ -76,6 +79,12 @@ func setup(fighter_def: Dictionary) -> FighterView:
 	var am := StandardMaterial3D.new(); am.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; am.albedo_color = Color(0.3, 0.65, 1.0, 0.0)
 	am.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; am.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; am.cull_mode = BaseMaterial3D.CULL_DISABLED
 	aura.material_override = am; aura.position.y = 1.05; aura.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; aura.visible = false; add_child(aura)
+	# the streak a blade leaves through the air, so a slash can be seen and read
+	tip_y = {"katana": 0.93, "divine": 1.1}.get(def.weapon, 1.05)
+	trail = MeshInstance3D.new(); trail.mesh = ImmediateMesh.new(); trail.top_level = true; trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var tm2 := StandardMaterial3D.new(); tm2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; tm2.vertex_color_use_as_albedo = true
+	tm2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; tm2.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; tm2.cull_mode = BaseMaterial3D.CULL_DISABLED
+	trail.material_override = tm2; add_child(trail)
 	glow_light = OmniLight3D.new(); glow_light.light_color = FOCUS_GLOW; glow_light.omni_range = 3.5; glow_light.position = Vector3(0, 1.3, 0.5); glow_light.visible = false; add_child(glow_light)
 	return self
 
@@ -194,7 +203,7 @@ func _pose(f: Dictionary, dt: float) -> void:
 				var an: Array = a.anim
 				var t: float = an[1] + (an[2] - an[1]) * (f.t / a.windup) if f.t < a.windup else an[2] + (an[3] - an[2]) * min(1.0, (f.t - a.windup) / (a.active + a.recover))
 				# Blend in a touch slower at the very start of a swing, so one move flows into the next instead of snapping.
-				_show(want, an[0], t); fade = 16.0 if f.t < 0.08 else 24.0
+				_show(want, an[0], t); fade = 13.0 if f.t < 0.1 else 22.0
 			"charge":
 				# Wound back and held, trembling, until the button is let go.
 				var atk: Dictionary = weapon.focusH if f.charge == "h" else weapon.focusV
@@ -312,6 +321,7 @@ func update(f: Dictionary, dt: float) -> void:
 	var grow := 1 + 0.12 * sin(clock * 9)
 	aura.scale = Vector3(grow, 1, grow)
 
+	_trail(f, dt)
 	held.visible = not f.disarmed
 	dropped.visible = f.disarmed
 	if f.disarmed:
@@ -320,5 +330,25 @@ func update(f: Dictionary, dt: float) -> void:
 
 ## Jump straight to the fighter's current state with no blending (round start).
 func snap(f: Dictionary) -> void:
-	started = false; weights.clear(); focus_mix = 0.0; cheer = false
+	started = false; weights.clear(); focus_mix = 0.0; cheer = false; trail_pts.clear()
 	update(f, 1.0)
+
+## Draw the blade's streak: a ribbon through where the blade has just been, brightest at the blade and fading behind it.
+func _trail(f: Dictionary, dt: float) -> void:
+	var swinging: bool = f.state == "attack" and not f.disarmed and not f.atk.kick and f.t > f.atk.windup * 0.3 and f.t < f.atk.windup + f.atk.active + 0.1
+	for p in trail_pts: p[2] += dt
+	while not trail_pts.is_empty() and trail_pts[0][2] > 0.2: trail_pts.pop_front()
+	if swinging:
+		var g := held.global_transform
+		trail_pts.append([g * Vector3(0, 0.22, 0), g * Vector3(0, tip_y, 0), 0.0])
+	var im := trail.mesh as ImmediateMesh
+	im.clear_surfaces()
+	trail.global_transform = Transform3D.IDENTITY
+	if trail_pts.size() < 2: return
+	var tint: Color = FOCUS_GLOW if (f.state == "attack" and f.atk.focus) else Color(1.0, 0.97, 0.9)
+	im.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	for p in trail_pts:
+		var a: float = clampf(1.0 - p[2] / 0.2, 0, 1)
+		im.surface_set_color(Color(tint.r, tint.g, tint.b, 0.0)); im.surface_add_vertex(p[0])
+		im.surface_set_color(Color(tint.r, tint.g, tint.b, a * a * 0.75)); im.surface_add_vertex(p[1])
+	im.surface_end()
