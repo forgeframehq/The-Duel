@@ -3,6 +3,8 @@ extends Node3D
 ## The Whispering Meadow: sky, sun, rolling ground, grass that moves in the wind, and the trees, rocks and
 ## buildings around the ring. Fighters can walk R metres from the centre.
 
+## Which arena this is: "storm" (Stormfield: dark sky, low warm light, trampled grass and mud, mist) or "meadow" (the bright one).
+var look := "storm"
 const R := 22.0
 const SPAWNS := [{"x": 0.0, "z": -4.5, "yaw": 0.0}, {"x": 0.0, "z": 4.5, "yaw": PI}]
 
@@ -40,11 +42,48 @@ void fragment() {
 }
 """
 
+const STORM_GROUND_SHADER := """
+shader_type spatial;
+uniform sampler2D noise_tex : repeat_enable, filter_linear_mipmap;
+uniform sampler2D ground_tex : source_color, repeat_enable, filter_linear_mipmap_anisotropic;
+uniform float ring = 22.0;
+varying vec3 wpos;
+float height(vec2 p) {
+	float r = length(p);
+	float n = texture(noise_tex, p * 0.004 + vec2(0.31, 0.72)).r;
+	float fine = texture(noise_tex, p * 0.02).r;
+	return smoothstep(ring + 1.5, ring + 34.0, r) * (1.5 + n * 16.0) + smoothstep(ring + 2.0, ring + 10.0, r) * (fine - 0.5) * 1.4;
+}
+void vertex() {
+	vec2 p = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xz;
+	VERTEX.y = height(p);
+	float e = 1.5;
+	NORMAL = normalize(vec3(height(p - vec2(e, 0.0)) - height(p + vec2(e, 0.0)), 2.0 * e, height(p - vec2(0.0, e)) - height(p + vec2(0.0, e))));
+	wpos = vec3(p.x, VERTEX.y, p.y);
+}
+void fragment() {
+	// the painted ground, laid at two sizes and mixed so that its repeats do not show
+	vec3 near_t = texture(ground_tex, wpos.xz * 0.17).rgb;
+	vec3 far_t = texture(ground_tex, wpos.zx * 0.045 + vec2(0.37, 0.11)).rgb;
+	vec3 turf = mix(near_t, far_t, 0.4) * vec3(2.6, 3.0, 3.6);
+	float n = texture(noise_tex, wpos.xz * 0.03).r;
+	// churned mud where the fighting happens
+	float worn = smoothstep(6.5, 2.0, length(wpos.xz) + (n - 0.5) * 4.5);
+	vec3 mud = vec3(0.2, 0.165, 0.13) * (0.55 + dot(near_t, vec3(0.33)) * 2.6);
+	ALBEDO = mix(turf, mud, worn * 0.85);
+	ROUGHNESS = mix(0.95, 0.75, worn);
+	// no glare off the turf when looking toward the low sun; the churned mud keeps a faint wet sheen
+	SPECULAR = mix(0.03, 0.22, worn);
+}
+"""
+
 const GRASS_SHADER := """
 shader_type spatial;
 render_mode cull_disabled;
 uniform vec3 fighter_a;
 uniform vec3 fighter_b;
+uniform vec3 root_col = vec3(0.04, 0.14, 0.018);
+uniform vec3 tip_col = vec3(0.19, 0.42, 0.06);
 varying float tip;
 void vertex() {
 	tip = UV.y;
@@ -63,7 +102,7 @@ void vertex() {
 	NORMAL = vec3(0.0, 1.0, 0.0);
 }
 void fragment() {
-	ALBEDO = mix(vec3(0.04, 0.14, 0.018), vec3(0.19, 0.42, 0.06), tip) * COLOR.rgb;
+	ALBEDO = mix(root_col, tip_col, tip) * COLOR.rgb;
 	// lit as if every blade faced the sky, front and back alike, so the lawn reads as one soft surface instead of dark spikes
 	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
 	ROUGHNESS = 0.9;
@@ -102,7 +141,9 @@ func _ready() -> void:
 	var with_mips := noise_img.duplicate() as Image; with_mips.generate_mipmaps()
 	var noise := ImageTexture.create_from_image(with_mips)
 	var ground := MeshInstance3D.new(); var pm := PlaneMesh.new(); pm.size = Vector2(420, 420); pm.subdivide_width = 160; pm.subdivide_depth = 160; ground.mesh = pm
-	var gm := ShaderMaterial.new(); var gs := Shader.new(); gs.code = GROUND_SHADER; gm.shader = gs; gm.set_shader_parameter("noise_tex", noise); gm.set_shader_parameter("dirt_tex", load("res://textures/dirt_color.jpg")); gm.set_shader_parameter("ring", R)
+	var gm := ShaderMaterial.new(); var gs := Shader.new(); gs.code = STORM_GROUND_SHADER if look == "storm" else GROUND_SHADER; gm.shader = gs
+	if look == "storm": gm.set_shader_parameter("ground_tex", load("res://textures/storm_ground.jpg"))
+	gm.set_shader_parameter("noise_tex", noise); gm.set_shader_parameter("dirt_tex", load("res://textures/dirt_color.jpg")); gm.set_shader_parameter("ring", R)
 	ground.material_override = gm; ground.extra_cull_margin = 40.0; add_child(ground)
 	_grass()
 	_scenery()
@@ -110,6 +151,9 @@ func _ready() -> void:
 func _sky() -> void:
 	var we := WorldEnvironment.new(); env = Environment.new()
 	var sky := Sky.new()
+	if look == "storm":
+		_storm_sky(we, sky)
+		return
 	var hdr := "res://sky/sky.hdr"
 	# where the sun should stand: behind and to one side of the player at the start of a round, so fighters are lit from the front
 	var sun_dir := Basis.from_euler(Vector3(deg_to_rad(-48), deg_to_rad(145), 0)) * Vector3(0, 0, 1)
@@ -138,6 +182,28 @@ func _sky() -> void:
 	sun.shadow_enabled = true; sun.directional_shadow_max_distance = 60.0; sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS; sun.shadow_blur = 0.8
 	add_child(sun)
 
+## Stormfield: a painted storm sky with the light breaking through low on one side, warm and weak, long shadows, mist.
+func _storm_sky(we: WorldEnvironment, sky: Sky) -> void:
+	var pan := PanoramaSkyMaterial.new(); pan.panorama = load("res://sky/storm.jpg"); sky.sky_material = pan
+	# In the painting the light breaks through 19 degrees left of centre, 25 degrees up. The sky is turned to put that break
+	# behind the far side of the ring, so the fighters are edged with light and their shadows reach toward the camera.
+	var sun_dir := Basis.from_euler(Vector3(deg_to_rad(-25), deg_to_rad(-20), 0)) * Vector3(0, 0, 1)
+	var phi := deg_to_rad(-19.4)
+	var in_photo := Vector3(sin(phi), 0, -cos(phi))
+	env.sky_rotation = Vector3(0, atan2(sun_dir.x, sun_dir.z) - atan2(in_photo.x, in_photo.z), 0)
+	env.background_mode = Environment.BG_SKY; env.sky = sky; env.background_energy_multiplier = 1.0
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR; env.ambient_light_color = Color(0.5, 0.56, 0.66); env.ambient_light_energy = 0.8
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC; env.tonemap_white = 3.5
+	env.adjustment_enabled = true; env.adjustment_contrast = 1.14; env.adjustment_saturation = 0.78
+	env.fog_enabled = true; env.fog_light_color = Color(0.37, 0.39, 0.41); env.fog_density = 0.014; env.fog_sky_affect = 0.0
+	env.glow_enabled = true; env.glow_intensity = 0.6; env.glow_bloom = 0.08; env.glow_hdr_threshold = 0.95
+	we.environment = env; add_child(we)
+	sun = DirectionalLight3D.new(); sun.rotation_degrees = Vector3(-25, -20, 0); sun.light_energy = 1.05; sun.light_color = Color(1.0, 0.87, 0.7)
+	sun.shadow_enabled = true; sun.directional_shadow_max_distance = 48.0; sun.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL; sun.directional_shadow_pancake_size = 80.0; sun.shadow_blur = 1.2
+	add_child(sun)
+	# a weak cool light from the camera's side, so faces and armour are not lost in shadow
+	var fill := DirectionalLight3D.new(); fill.rotation_degrees = Vector3(-35, 165, 0); fill.light_energy = 0.45; fill.light_color = Color(0.7, 0.78, 0.95); add_child(fill)
+
 func _grass() -> void:
 	# one blade: a tapering strip three segments tall
 	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -152,8 +218,10 @@ func _grass() -> void:
 			st.set_uv(Vector2(0.5, v.y)); st.add_vertex(v)
 	var blade := st.commit()
 	grass_mat = ShaderMaterial.new(); var sh := Shader.new(); sh.code = GRASS_SHADER; grass_mat.shader = sh
+	if look == "storm":
+		grass_mat.set_shader_parameter("root_col", Vector3(0.03, 0.036, 0.02)); grass_mat.set_shader_parameter("tip_col", Vector3(0.13, 0.15, 0.065))
 	var rng := RandomNumberGenerator.new(); rng.seed = 7
-	var count := 110000
+	var count := 90000 if look == "storm" else 110000
 	var mm := MultiMesh.new(); mm.transform_format = MultiMesh.TRANSFORM_3D; mm.use_colors = true; mm.mesh = blade; mm.instance_count = count
 	for i in count:
 		# thick near the ring, thinning out toward the hills; sparse on the worn earth in the middle
@@ -194,7 +262,47 @@ func _local(root: Node3D, node: Node3D) -> Transform3D:
 func _hash(v: float) -> float:
 	return fposmod(sin(v * 127.1) * 43758.5453, 1.0)
 
+## Darken a model's own colours (Stormfield's trees and buildings sit under a storm sky). Done once per model file.
+var _tinted := {}
+func _tint(scene: PackedScene, tint: Color) -> PackedScene:
+	if _tinted.has(scene): return scene
+	_tinted[scene] = true
+	var n: Node = scene.instantiate()
+	for m in n.find_children("*", "MeshInstance3D", true, false):
+		var mesh: Mesh = (m as MeshInstance3D).mesh
+		for i in mesh.get_surface_count():
+			var mat := mesh.surface_get_material(i) as BaseMaterial3D
+			if mat: mat.albedo_color = tint
+	n.free()
+	return scene
+
+func _storm_scenery() -> void:
+	var tree: PackedScene = _tint(load("res://scenery/tree_broadleaf.glb"), Color(0.42, 0.45, 0.38))
+	var tree_mid: PackedScene = _tint(load("res://scenery/tree_broadleaf_mid.glb"), Color(0.42, 0.45, 0.38))
+	var rock: PackedScene = _tint(load("res://scenery/boulders.glb"), Color(0.6, 0.6, 0.56))
+	var hut: PackedScene = _tint(load("res://scenery/hut.glb"), Color(0.72, 0.68, 0.6))
+	var pavilion: PackedScene = _tint(load("res://scenery/pavilion.glb"), Color(0.75, 0.62, 0.58))
+	# old oaks ringing the ring, more on the hills behind
+	for i in 18:
+		var a := (float(i) / 18) * TAU + _hash(i * 4.1) * 0.3
+		var d := R + 3.5 + _hash(i * 6.3) * 13.0
+		_place(tree, sin(a) * d, cos(a) * d, _hash(i * 2.3) * TAU, 11 + _hash(i * 8.7) * 6, -0.25)
+	for i in 34:
+		var a := _hash(i * 3.7 + 9) * TAU
+		var d := 44.0 + _hash(i * 5.1 + 2) * 80.0
+		_place(tree_mid, sin(a) * d, cos(a) * d, _hash(i * 1.9) * TAU, 11 + _hash(i * 7.3) * 7, -0.3, false)
+	for i in 22:
+		var a := _hash(i * 5.7 + 1) * TAU
+		var d := 8.0 + _hash(i * 3.1) * 34.0
+		_place(rock, sin(a) * d, cos(a) * d, _hash(i * 9.9) * TAU, 0.35 + _hash(i * 2.7) * (0.5 if d < R else 2.4), -0.1, d > R)
+	# the cottage back left and the shrine back right, as in the picture this arena was made from
+	_place(hut, 17, 22, -2.6, 6.5, -0.3)
+	_place(pavilion, -18, 20, 2.4, 7.5, -0.3)
+
 func _scenery() -> void:
+	if look == "storm":
+		_storm_scenery()
+		return
 	var N := "res://scenery/nature/"
 	var trees: Array = [1, 2, 3, 4, 5].map(func(i): return load(N + "CommonTree_%d.gltf" % i))
 	var rock: PackedScene = load("res://scenery/boulders.glb")

@@ -245,6 +245,19 @@ No build step: plain ES modules, Three.js r187 vendored in `vendor/`.
 
 ## 8. Open list
 
+### Build 1.0 (11 Nov, evening): Stormfield, the ultimate, Dawn of Dynasties look, icon, splash
+
+Asked for by Sudhi: "I want this exact colour scheme" (a dark, stormy, gritty picture), "Make a new arena with this" (a ChatGPT-made dark trampled-grass ground), then mid-build: "animation for the ultimate, also use the font aesthetics and general aesthetics from Dawn of dynasty, add the apk logo also, remove the godot engine splash screen and add our forgeframe one".
+
+- **Stormfield** is the new default arena (`Arena.look = "storm"`; the bright one is kept as "Whispering Meadow"; the **Arena button** on the menu swaps them and rebuilds the place). Sky: his ChatGPT storm panorama (`godot/sky/storm.jpg`), turned so the break in the clouds sits behind the far fighter. Ground: his painted texture (`godot/textures/storm_ground.jpg`) laid at two sizes so repeats do not show, churned mud in the middle. Low weak warm sun (25 degrees up), cool ambient, saturation 0.78, grey mist. Meshy broadleaf trees tinted dark, hut back left, shrine (pavilion) back right, boulders, no flowers.
+  - Two things learned: looking toward a low sun the ground glared pale until `SPECULAR` was set near zero; and two-split shadows drew a hard-edged rectangle of shade, cured by one shadow map (`SHADOW_ORTHOGONAL`, 48 m, pancake 80).
+  - ChatGPT's `the_duel_gritty_arena.glb` was not usable as models (blob trees, slabs); only its colour list was used.
+- **Ultimate**: pressing the special now freezes the fight for 1.3 s (`ULT_DUR`): black bars slide in, the camera comes round to the fighter's front, they throw weapon and shield wide (Mixamo `ss_sword_and_shield_power_up`), the weapon glows gold, embers rise, the ultimate's name appears in gold; then a flash and the blow is let loose. Both fighters get it. Test hook: `DUEL_ULT=<seconds>`.
+- **Dawn of Dynasties look**: Cinzel and Cinzel Decorative fonts (OFL, in `godot/fonts/`, fetched from the google/fonts GitHub repo), gold on dark wood buttons, crimson for the chosen option, the crimson laurel plate for FIGHT, The Duel logo on the menu, "A Forge Frame game" with the studio mark, gold-rimmed bars (player blue, rival red, stamina gold), gold clock and banners.
+- **App icon**: the painted The Duel icon (`godot/icon.png`, plus adaptive foreground/background) set in `export_presets.cfg`.
+- **Splash**: Godot's logo is gone. The boot picture is the Forge Frame logo (`godot/ui/boot.png`), followed by the same logo in-game with "presents" for about two seconds; tap to skip. Other test hooks added: `DUEL_ARENA=storm|meadow`, `DUEL_SPLASH=1`.
+- Not yet answered by Sudhi: how 0.8, 0.9 and 1.0 play.
+
 ### Next build list (collecting; build when Sudhi says go)
 
 **His feedback on build 18 (11 Nov, 12:43, sent while build 19 was being made; he had not seen build 19):**

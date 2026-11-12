@@ -21,6 +21,8 @@ var flinch := "Hit_Reaction_1"
 var hop := false
 var cheer := false
 var focus_mix := 0.0
+var ult := -1.0               # 0 to 1 while the fighter gathers power for their ultimate (the fight is frozen meanwhile); -1 otherwise
+const ULT_GLOW := Color(1.0, 0.78, 0.3)
 var clock := 0.0
 var blade_mat: StandardMaterial3D
 var base_emission := Color.BLACK
@@ -332,7 +334,10 @@ func _pose(f: Dictionary, dt: float) -> void:
 	var speed := Sim.hyp(f.vx, f.vz)
 	var fwd: float = f.vx * sin(f.yaw) + f.vz * cos(f.yaw)
 	var fade := 12.0
-	if cheer and f.state != "dead":
+	if ult >= 0.0:
+		# gathering power: weapon and shield thrown wide, chest out
+		_show(want, "ss_sword_and_shield_power_up", 0.15 + ult * (clips["ss_sword_and_shield_power_up"].length - 0.35)); fade = 14.0
+	elif cheer and f.state != "dead":
 		_loop(want, "victory", 1.0, 1.0, dt); fade = 6.0
 	else:
 		match f.state:
@@ -456,15 +461,18 @@ func update(f: Dictionary, dt: float) -> void:
 	_pose(f, dt)
 
 	# A charging weapon burns blue, brighter the longer it is held, and stays lit until the strike has landed.
-	var striking: bool = f.state == "attack" and f.atk.focus and not f.atk.skill and f.t < f.atk.windup + f.atk.active
+	var striking: bool = f.state == "attack" and f.atk.focus and f.t < f.atk.windup + f.atk.active
+	var golden: bool = ult >= 0.0 or (striking and f.atk.skill)
 	var focus: float = 0.35 + 0.65 * smoothstep(0.0, 1.0, f.t / 0.9) if f.state == "charge" else (1.0 if striking else 0.0)
+	if ult >= 0.0: focus = 0.4 + 0.6 * ult
 	focus_mix += (focus - focus_mix) * min(1.0, 14 * dt)
 	clock += dt
-	blade_mat.emission = base_emission.lerp(FOCUS_GLOW, min(1.0, focus_mix * 1.5))
+	blade_mat.emission = base_emission.lerp(ULT_GLOW if golden else FOCUS_GLOW, min(1.0, focus_mix * 1.5))
+	glow_light.light_color = ULT_GLOW if golden else FOCUS_GLOW
 	blade_mat.emission_energy_multiplier = 1.0 + focus_mix * 5.0
 	aura.visible = false
 	(aura.material_override as StandardMaterial3D).albedo_color.a = focus_mix * (0.13 + 0.05 * sin(clock * 16))
-	glow_light.light_energy = focus_mix * 3.0; glow_light.visible = focus_mix > 0.02
+	glow_light.light_energy = focus_mix * (1.2 if ult >= 0.0 else 3.0); glow_light.visible = focus_mix > 0.02
 	var grow := 1 + 0.12 * sin(clock * 9)
 	aura.scale = Vector3(grow, 1, grow)
 
@@ -477,7 +485,7 @@ func update(f: Dictionary, dt: float) -> void:
 
 ## Jump straight to the fighter's current state with no blending (round start).
 func snap(f: Dictionary) -> void:
-	started = false; weights.clear(); focus_mix = 0.0; cheer = false; trail_pts.clear()
+	started = false; weights.clear(); focus_mix = 0.0; ult = -1.0; cheer = false; trail_pts.clear()
 	update(f, 1.0)
 
 ## Draw the blade's streak: a ribbon through where the blade has just been, brightest at the blade and fading behind it.
