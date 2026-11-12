@@ -480,7 +480,7 @@ static func _apply_hit(a: Dictionary, b: Dictionary, atk: Dictionary, w: Diction
 		w.events.append(info)
 		return
 
-	var guarding: bool = b.state == "guard" and off <= 1.6
+	var guarding: bool = b.state == "guard" and off <= b.weapon.guardArc      # a shield covers more of the body
 	if guarding and not atk.skill and parrying(b):
 		b.stam = min(b.stats.maxStam, b.stam + 20); b.regenDelay = 0.0; b.seq = ""; b.chargeMul = 1.0; b.parryCd = 0.5
 		b.yaw = atan2(-dx, -dz); _gain(b, 18)
@@ -501,7 +501,8 @@ static func _apply_hit(a: Dictionary, b: Dictionary, atk: Dictionary, w: Diction
 	if guarding and not atk.focus and not atk.skill:
 		# A held guard stops a normal attack from the front at the cost of guard meter (and a scratch of damage).
 		# A kick, or the blow that empties the meter, breaks the guard and leaves the defender reeling.
-		b.guardM -= GUARD_MAX if atk.guardBreak else raw * 2.1
+		# a shield makes blocking cheap; a greatsword or axe wears a guard down faster
+		b.guardM -= GUARD_MAX if atk.guardBreak else raw * 2.1 * b.weapon.guardCost * a.weapon.guardDmg
 		b.guardRest = 1.3
 		if b.guardM <= 0:
 			b.guardM = 0.0; b.guardRest = 2.2

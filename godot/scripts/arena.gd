@@ -10,7 +10,6 @@ const GROUND_SHADER := """
 shader_type spatial;
 uniform sampler2D noise_tex : repeat_enable, filter_linear_mipmap;
 uniform sampler2D dirt_tex : source_color, repeat_enable, filter_linear_mipmap_anisotropic;
-uniform sampler2D moss_tex : repeat_enable, filter_linear_mipmap_anisotropic;
 uniform float ring = 22.0;
 varying vec3 wpos;
 float height(vec2 p) {
@@ -34,10 +33,9 @@ void fragment() {
 	vec3 dirt = texture(dirt_tex, wpos.xz * 0.22).rgb * vec3(0.8, 0.72, 0.6);
 	// a worn patch of earth in the middle of the ring, where the fighting happens
 	float worn = smoothstep(5.0, 1.5, length(wpos.xz) + (n - 0.5) * 4.0);
-	// a photo of moss gives the lawn its fine grain: only its light and dark are used, the colour stays ours
-	vec3 moss = texture(moss_tex, wpos.xz * 0.35).rgb;
-	float grain = clamp(0.55 + dot(moss, vec3(0.3, 0.6, 0.1)) * 24.0, 0.72, 1.35);      // the photo is very dark: about 0.02 on average
-	ALBEDO = mix(grass * grain * 1.45, dirt, worn * 0.75);
+	// fine grain from noise. (A moss photo was tried here: it is a sheet of separate fronds, and printed fern shapes all over the lawn.)
+	float grain = 0.82 + m * 0.36;
+	ALBEDO = mix(grass * grain * 1.2, dirt, worn * 0.75);
 	ROUGHNESS = 0.95;
 }
 """
@@ -104,7 +102,7 @@ func _ready() -> void:
 	var with_mips := noise_img.duplicate() as Image; with_mips.generate_mipmaps()
 	var noise := ImageTexture.create_from_image(with_mips)
 	var ground := MeshInstance3D.new(); var pm := PlaneMesh.new(); pm.size = Vector2(420, 420); pm.subdivide_width = 160; pm.subdivide_depth = 160; ground.mesh = pm
-	var gm := ShaderMaterial.new(); var gs := Shader.new(); gs.code = GROUND_SHADER; gm.shader = gs; gm.set_shader_parameter("noise_tex", noise); gm.set_shader_parameter("dirt_tex", load("res://textures/dirt_color.jpg")); gm.set_shader_parameter("moss_tex", load("res://textures/moss_color.jpg")); gm.set_shader_parameter("ring", R)
+	var gm := ShaderMaterial.new(); var gs := Shader.new(); gs.code = GROUND_SHADER; gm.shader = gs; gm.set_shader_parameter("noise_tex", noise); gm.set_shader_parameter("dirt_tex", load("res://textures/dirt_color.jpg")); gm.set_shader_parameter("ring", R)
 	ground.material_override = gm; ground.extra_cull_margin = 40.0; add_child(ground)
 	_grass()
 	_scenery()

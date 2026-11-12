@@ -2,7 +2,7 @@ extends Node3D
 ## The Duel, Godot edition. This script runs the whole game: the menu, a match, the camera, sounds and effects.
 ## The rules themselves are in scripts/sim.gd; this only feeds them the player's thumbs and shows what they decide.
 
-const VERSION := "0.6"
+const VERSION := "0.7"
 ## Camera angles. The game offers two, switched with the button under the clock: Shoulder (index 3; close behind the player, the
 ## sword arm in frame, the default) and Side-on (index 4). The first three are kept for testing (DUEL_CAM=0..2). dist: how far behind the player; side: how far off the shoulder; pitch: how steeply it
 ## looks down. "Side-on" stands off to one side of the two fighters instead, like a classic fighting game.
@@ -31,6 +31,10 @@ var mode := "menu"          # menu, fight, result
 var pick := int(OS.get_environment("DUEL_PICK")) if OS.get_environment("DUEL_PICK") != "" else 2   # which fighter the player has chosen (index into the roster)
 var foe := 0
 var level := "normal"
+## The weapons a player can give any fighter. "sword" is drawn as each fighter's own blade.
+const ARMS := ["sword", "sword_shield", "katana", "greatsword", "axe"]
+var arm := OS.get_environment("DUEL_ARM")               # the weapon the player has chosen ("" = the fighter's own)
+var arms := ["", ""]        # what each side carries in the current match
 var low := false
 var acc := 0.0
 var hitstop := 0.0
@@ -91,7 +95,7 @@ func _strip(names: String) -> void:
 		if part.size() > 1:
 			from = float(part[1].split("-")[0]); to = float(part[1].split("-")[1])
 		for i in n:
-			var v := FighterView.new().setup(roster[pick]); add_child(v)
+			var v := FighterView.new().setup(roster[pick], OS.get_environment("DUEL_ARM")); add_child(v)
 			v.position = Vector3(-(i - (n - 1) / 2.0) * 1.9, 0, r * -4.0); v.rotation.y = PI + float(OS.get_environment("DUEL_TURN") if OS.get_environment("DUEL_TURN") != "" else "0.6")
 			v.weights = {rows[r]: 1.0}; v.times = {rows[r]: from + (to - from) * (i + 0.5) / n}; v._apply()
 	cam.fov = 30.0; cam.position = Vector3(0, 1.5 + rows.size() * 0.9, -8.5 - rows.size() * 2.6); cam.look_at(Vector3(0, 0.95, -(rows.size() - 1) * 2.0))
@@ -143,7 +147,7 @@ func _build_menu(layer: CanvasLayer) -> void:
 	panel.offset_left = -470; panel.offset_right = -40; panel.offset_top = 30; panel.add_theme_constant_override("separation", 6); menu.add_child(panel)
 	var nm := _label("", 34, Color(1.0, 0.9, 0.65)); nm.name = "Name"; nm.autowrap_mode = TextServer.AUTOWRAP_WORD; panel.add_child(nm)
 	var origin := _label("", 18, Color(0.8, 0.9, 1.0)); origin.name = "Origin"; panel.add_child(origin)
-	var blurb := _label("", 17); blurb.name = "Blurb"; blurb.autowrap_mode = TextServer.AUTOWRAP_WORD; blurb.custom_minimum_size = Vector2(430, 0); panel.add_child(blurb)
+	var blurb := _label("", 15); blurb.name = "Blurb"; blurb.autowrap_mode = TextServer.AUTOWRAP_WORD; blurb.custom_minimum_size = Vector2(430, 0); panel.add_child(blurb)
 	var stats := _label("", 17, Color(0.9, 0.9, 0.9)); stats.name = "Stats"; panel.add_child(stats)
 
 	# bottom-left: the fighters to choose from
@@ -157,11 +161,11 @@ func _build_menu(layer: CanvasLayer) -> void:
 		var tag := _label(roster[i].short, 18); tag.set_anchors_preset(Control.PRESET_BOTTOM_WIDE); tag.offset_top = -30; tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		tag.mouse_filter = Control.MOUSE_FILTER_IGNORE; card.add_child(tag)
 		card.pressed.connect(func() -> void:
-			play("ui_select", -10); pick = i; _refresh_menu())
+			play("ui_select", -10); pick = i; arm = ""; _refresh_menu())
 		cards.add_child(card)
 
 	# bottom-right: how hard the rival is, and the button that starts the match
-	var right := VBoxContainer.new(); right.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); right.offset_left = -470; right.offset_right = -40; right.offset_top = -240; right.offset_bottom = -30
+	var right := VBoxContainer.new(); right.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT); right.offset_left = -470; right.offset_right = -40; right.offset_top = -300; right.offset_bottom = -30
 	right.alignment = BoxContainer.ALIGNMENT_END; right.add_theme_constant_override("separation", 14); menu.add_child(right)
 	var levels := HBoxContainer.new(); levels.name = "Levels"; levels.add_theme_constant_override("separation", 10); right.add_child(levels)
 	for l in ["easy", "normal", "hard"]:
@@ -171,16 +175,26 @@ func _build_menu(layer: CanvasLayer) -> void:
 	var gfx := _button("Graphics: High", 18, func() -> void:
 		low = not low; arena.set_quality(low); menu.find_child("Gfx", true, false).text = "Graphics: Low" if low else "Graphics: High")
 	gfx.name = "Gfx"; right.add_child(gfx)
+	var wb := _button("Weapon", 20, func() -> void:
+		var cur := ARMS.find(_arm_of(pick)); arm = ARMS[(cur + 1) % ARMS.size()]; _refresh_menu())
+	wb.name = "Weaponb"; right.add_child(wb)
 	var go := _button("FIGHT", 40, _start_match, true); go.custom_minimum_size = Vector2(0, 84); right.add_child(go)
+
+## The weapon a fighter will carry: the player's choice for their own fighter, otherwise the fighter's usual one.
+func _arm_of(i: int) -> String:
+	var own: String = roster[i].weapon
+	if own == "divine": own = "sword"
+	return arm if (arm != "" and i == pick) else own
 
 func _refresh_menu() -> void:
 	var d: Dictionary = roster[pick]
+	menu.find_child("Weaponb", true, false).text = "Weapon:  " + Sim.weapon_of(_arm_of(pick)).label
 	var panel := menu.get_node("Panel")
 	panel.get_node("Name").text = d.name
-	panel.get_node("Origin").text = d.origin + "   ·   " + Sim.weapon_of(d.weapon).label + "   ·   " + Sim.skill_of(d.skill).name
+	panel.get_node("Origin").text = d.origin + "   ·   " + Sim.skill_of(d.skill).name
 	panel.get_node("Blurb").text = d.blurb
 	var st: Dictionary = d.stats
-	panel.get_node("Stats").text = "Health %d    Stamina %d    Power %.2f    Speed %.1f" % [st.maxHp, st.maxStam, st.power, st.speed]
+	panel.get_node("Stats").text = ""      # no room beside the weapon button on a phone; the numbers will come back on a proper fighter screen
 	var cards := menu.get_node("Cards")
 	for i in cards.get_child_count():
 		var on := i == pick
@@ -191,7 +205,7 @@ func _refresh_menu() -> void:
 		b.add_theme_stylebox_override("normal", _style(Color(0.75, 0.55, 0.15, 0.85) if on else Color(0, 0, 0, 0.45), Color(1, 0.85, 0.5, 0.9) if on else Color(1, 1, 1, 0.25)))
 	# the chosen fighter stands in the meadow behind the menu
 	if preview: preview.queue_free()
-	preview = FighterView.new().setup(d); add_child(preview)
+	preview = FighterView.new().setup(d, _arm_of(pick)); add_child(preview)
 	preview_f = Sim.create_world({"R": Arena.R, "spawns": [{"x": 0.0, "z": 0.0, "yaw": PI - 0.35}, {"x": 0.0, "z": 50.0, "yaw": 0.0}]}, d.stats, d.stats).fighters[0]
 	preview.snap(preview_f)
 
@@ -228,11 +242,15 @@ func _start_match() -> void:
 	# the rival is one of the other fighters
 	var others := range(roster.size()).filter(func(i): return i != pick)
 	foe = others[randi() % others.size()]
-	world = Sim.create_world({"R": Arena.R, "spawns": Arena.SPAWNS}, roster[pick].stats, roster[foe].stats)
+	# the rival turns up with a weapon of its own choosing
+	arms = [_arm_of(pick), ARMS[randi() % ARMS.size()] if OS.get_environment("DUEL_FOE_ARM") == "" else OS.get_environment("DUEL_FOE_ARM")]
+	var sa: Dictionary = roster[pick].stats.duplicate(); sa.weapon = arms[0]
+	var sb: Dictionary = roster[foe].stats.duplicate(); sb.weapon = arms[1]
+	world = Sim.create_world({"R": Arena.R, "spawns": Arena.SPAWNS}, sa, sb)
 	rival = Rival.new(level, randi())
 	auto_ai = Rival.new("hard", randi())
 	for i in 2:
-		var v := FighterView.new().setup(roster[pick if i == 0 else foe]); add_child(v); views.append(v)
+		var v := FighterView.new().setup(roster[pick if i == 0 else foe], arms[i]); add_child(v); views.append(v)
 	hud.world = world; hud.names = [roster[pick].short, roster[foe].short]; hud.shown_hp = [1.0, 1.0]
 	cam_yaw = 0.0; acc = 0.0; hitstop = 0.0
 	mode = "fight"; menu.visible = false; result.visible = false; hud.visible = true; pad.visible = not auto; cam_button.visible = true

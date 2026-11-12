@@ -26,6 +26,15 @@
     0.7,
     0.7
    ]
+  },
+  "mx": {
+   "file": "res://src/mx/ss_sword_and_shield_idle.fbx",
+   "clip": "mixamo_com",
+   "want": [
+    0,
+    0.7,
+    0.7
+   ]
   }
  },
  "jobs": [
@@ -173,6 +182,566 @@
   {
    "file": "res://src/kev/HumanM_Run01_Backward.fbx",
    "map": "kev"
+  },
+  {
+   "file": "res://src/mx/ax_crouch_idle.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_crouch_to_standing_idle.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_block_idle.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_block_react_large.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_disarm_over_shoulder.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_disarm_underarm.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_idle.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_idle_looking_ver_1.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_idle_looking_ver_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_jump.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_attack_360_high.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_attack_360_low.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_attack_backhand.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_attack_downward.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_attack_horizontal.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_attack_kick_ver_1.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_attack_kick_ver_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_combo_attack_ver_1.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_combo_attack_ver_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_combo_attack_ver_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_melee_run_jump_attack.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_react_large_from_left.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_react_large_from_right.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_react_large_gut.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_run_back.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_run_forward.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_taunt_battlecry.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_taunt_chest_thump.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_turn_left_90.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_turn_right_90.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_walk_back.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_walk_forward.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_walk_left.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_standing_walk_right.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_equip_over_shoulder.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_equip_underarm.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_idle.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_idle_looking_ver_1.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_idle_looking_ver_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_jump.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_jump_running.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_run_back.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_run_forward.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_turn_left_90.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_turn_right_90.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_walk_back.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ax_unarmed_walk_forward.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_draw_a_great_sword_1.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_draw_a_great_sword_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_180_turn.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_180_turn_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_attack.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_blocking.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_blocking_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_blocking_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_casting.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_crouching.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_crouching_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_crouching_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_crouching_4.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_crouching_5.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_crouching_6.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_idle.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_idle_4.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_idle_5.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_impact.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_impact_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_impact_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_impact_4.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_impact_5.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_jump.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_jump_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_power_up.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_run.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_run_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_slash.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_slash_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_slash_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_slash_4.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_slash_5.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_strafe.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_strafe_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_strafe_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_strafe_4.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_turn.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_turn_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_walk.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_great_sword_walk_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_spell_cast.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_two_handed_sword_death.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/gs_two_handed_sword_death_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sheath_sword_1.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sheath_sword_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_180_turn.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_180_turn_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_attack.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_attack_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_attack_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_attack_4.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_block.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_block_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_block_idle.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_casting.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_casting_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_crouch.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_crouch_block.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_crouch_block_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_crouch_block_idle.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_crouch_idle.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_crouching.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_crouching_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_crouching_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_death.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_death_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_idle.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_idle_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_idle_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_idle_4.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_impact.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_impact_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_impact_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_jump.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_jump_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_kick.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_power_up.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_run.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_run_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_slash.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_slash_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_slash_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_slash_4.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_slash_5.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_strafe.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_strafe_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_strafe_3.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_strafe_4.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_turn.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_turn_2.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_walk.fbx",
+   "map": "mx"
+  },
+  {
+   "file": "res://src/mx/ss_sword_and_shield_walk_2.fbx",
+   "map": "mx"
   }
  ]
 }

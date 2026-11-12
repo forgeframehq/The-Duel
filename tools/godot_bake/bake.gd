@@ -22,7 +22,9 @@ func maps() -> Dictionary:
 	side(mco, {"Shoulder": "%sShoulder", "Arm": "%sArm", "ForeArm": "%sForeArm", "Hand": "%sHand", "UpLeg": "%sUpLeg", "Leg": "%sLeg", "Foot": "%sFoot", "ToeBase": "%sToeBase"}, "Left", "Right")
 	var kev := {"Hips": "B-hips", "Spine02": "B-spine", "Spine": "B-chest", "neck": "B-neck", "Head": "B-head"}
 	side(kev, {"Shoulder": "B-shoulder.%s", "Arm": "B-upperArm.%s", "ForeArm": "B-forearm.%s", "Hand": "B-hand.%s", "UpLeg": "B-thigh.%s", "Leg": "B-shin.%s", "Foot": "B-foot.%s", "ToeBase": "B-toe.%s"}, "L", "R")
-	return {"q": q, "mco": mco, "kev": kev}
+	var mx := {"Hips": "mixamorig_Hips", "Spine02": "mixamorig_Spine", "Spine01": "mixamorig_Spine1", "Spine": "mixamorig_Spine2", "neck": "mixamorig_Neck", "Head": "mixamorig_Head"}
+	side(mx, {"Shoulder": "mixamorig_%sShoulder", "Arm": "mixamorig_%sArm", "ForeArm": "mixamorig_%sForeArm", "Hand": "mixamorig_%sHand", "UpLeg": "mixamorig_%sUpLeg", "Leg": "mixamorig_%sLeg", "Foot": "mixamorig_%sFoot", "ToeBase": "mixamorig_%sToeBase"}, "Left", "Right")
+	return {"q": q, "mco": mco, "kev": kev, "mx": mx}
 
 var tgt: Skeleton3D
 var tgt_rest_g := {}      # bone name -> Transform3D in model space, rest pose
@@ -41,7 +43,7 @@ func facing(sk: Skeleton3D, g: Array, l_foot: String, l_toe: String, r_foot: Str
 	var d: Vector3 = (g[sk.find_bone(l_toe)].origin - g[sk.find_bone(l_foot)].origin) + (g[sk.find_bone(r_toe)].origin - g[sk.find_bone(r_foot)].origin)
 	return atan2(d.x, d.z)
 
-const KNUCKLES := {"pelvis": ["index_01_r", "pinky_01_r"], "Hips": ["RightHandIndex1", "RightHandPinky1"], "B-hips": ["B-indexFinger01.R", "B-pinky01.R"]}
+const KNUCKLES := {"pelvis": ["index_01_r", "pinky_01_r"], "Hips": ["RightHandIndex1", "RightHandPinky1"], "B-hips": ["B-indexFinger01.R", "B-pinky01.R"], "mixamorig_Hips": ["mixamorig_RightHandIndex1", "mixamorig_RightHandPinky1"]}
 const BLADE := Vector3(0, 0.7071, 0.7071)     # the way the blade leaves the fighter's hand, in the hand bone's own space
 var hand_roll := {}                            # per source skeleton: a twist of the sword hand found by calibrate()
 
@@ -117,6 +119,7 @@ func pose(c: Dictionary, src: Animation, tr: Array, time: float) -> Dictionary:
 	tg["hips_y"] = g[c.src_id["Hips"]].origin.y * sk.global_transform.basis.get_scale().y * c.scale_h
 	var k: float = sk.global_transform.basis.get_scale().y * c.scale_h
 	tg["hand"] = g[c.src_id["RightHand"]].origin * k
+	tg["hips"] = c.turn * (g[c.src_id["Hips"]].origin * k)
 	var hips: Vector3 = g[c.src_id["Hips"]].origin
 	var lf: Vector3 = (g[c.src_id["LeftFoot"]].origin - hips) * k
 	var rf: Vector3 = (g[c.src_id["RightFoot"]].origin - hips) * k
@@ -156,11 +159,13 @@ func bake_file(path: String, m: Dictionary, roll: float, only := [], rename := {
 		for b in BONES:
 			var t := out.add_track(Animation.TYPE_ROTATION_3D); out.track_set_path(t, NodePath("Armature/Skeleton3D:" + b)); tracks[b] = t
 		var hips_t := out.add_track(Animation.TYPE_POSITION_3D); out.track_set_path(hips_t, NodePath("Armature/Skeleton3D:Hips"))
-		var hand := []; var slide := 0.0; var slide_n := 0; var last := {}
+		var hand := []; var slide := 0.0; var slide_n := 0; var last := {}; var travel := Vector3.ZERO; var hip0 := Vector3.ZERO
 		for f in int(ceil(src.length * 30.0)) + 1:
 			var time: float = min(src.length, f / 30.0)
 			var tg := pose(c, src, tr, time)
 			hand.append(tg.hand)
+			if f == 0: hip0 = tg.hips
+			travel = tg.hips - hip0
 			if not last.is_empty() and last.foot_id == tg.foot_id:
 				slide += Vector2(tg.foot.x - last.foot.x, tg.foot.z - last.foot.z).length() * 30.0; slide_n += 1
 			last = tg
@@ -182,8 +187,10 @@ func bake_file(path: String, m: Dictionary, roll: float, only := [], rename := {
 			if v > 2.5 and v >= before and v > after: peaks.append([snappedf(i / 30.0, 0.01), snappedf(v, 0.1)])
 		out.set_meta("peaks", peaks)
 		var final_name: String = rename.get(str(clip_name), str(clip_name))
+		if final_name == "mixamo_com": final_name = path.get_file().get_basename()      # every Mixamo clip is called the same; use the file's name
+		out.set_meta("travel", travel)
 		lib.add_animation(final_name, out)
-		print("  ", final_name, "  ", "%.2f s" % src.length, "  ground %.1f m/s" % out.get_meta("speed"), "  hand peaks ", peaks)
+		print("  ", final_name, "  ", "%.2f s" % src.length, "  travel ", Vector2(travel.x, travel.z).snapped(Vector2.ONE * 0.1), "  hand peaks ", peaks)
 	c.scene.free()
 
 var _tgt_g := []

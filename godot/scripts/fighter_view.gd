@@ -34,16 +34,29 @@ var trail_pts: Array = []        # [base, tip, age] of the blade over the last m
 var tip_y := 1.05
 var set_kind := "HumanM_"     # which body the movement clips were made for
 var stride := 0.0               # where in the step cycle the legs are, 0 to 1; shared by every movement clip so feet stay in time
-const STANCE := "KBS_Ready_Idle_001"
+## How a fighter stands, guards and flinches with each kind of weapon. `guard` is [clip, moment to hold]; a moment of -1 plays it as a loop.
+const STYLES := {
+	"sword": {"stance": "KBS_Ready_Idle_001", "guard": ["Sword_Parry_Backward", 0.4], "flinch": ["Hit_Reaction_1", "Hit_Reaction_to_Waist", "Hit_Chest", "Hit_Head"], "tip": 1.05},
+	"sword_shield": {"stance": "ss_sword_and_shield_idle", "guard": ["ss_sword_and_shield_block_idle", -1.0], "flinch": ["ss_sword_and_shield_impact", "ss_sword_and_shield_impact_2", "ss_sword_and_shield_impact_3"], "tip": 1.05},
+	"greatsword": {"stance": "gs_great_sword_idle", "guard": ["gs_great_sword_blocking_2", 0.45], "flinch": ["gs_great_sword_impact", "gs_great_sword_impact_2", "gs_great_sword_impact_4"], "tip": 1.5},
+	"axe": {"stance": "ax_standing_idle", "guard": ["ax_standing_block_idle", -1.0], "flinch": ["ax_standing_react_large_from_left", "ax_standing_react_large_gut", "ax_standing_block_react_large"], "tip": 1.02},
+}
+var style: Dictionary = STYLES.sword
+var kind := "sword"             # which weapon is in hand: sword, katana, divine, sword_shield, greatsword, axe
+var shield: Node3D
+var STANCE := "KBS_Ready_Idle_001"
 const WALK := "KBS_Walk_F_001_IP"
 ## movement clips by direction of travel, every 45 degrees from straight ahead round to the left
 const DIRS := ["Run01_Forward", "StrafeRun01_ForwardLeft", "StrafeRun01_Left", "StrafeRun01_BackwardLeft", "Run01_Backward", "StrafeRun01_BackwardRight", "StrafeRun01_Right", "StrafeRun01_ForwardRight"]
 const RUN_SPEED := 4.0          # metres a second the run clips cover; the legs are played faster or slower to match the ground
 const WALK_SPEED := 1.6
 
-func setup(fighter_def: Dictionary) -> FighterView:
+func setup(fighter_def: Dictionary, weapon_id := "") -> FighterView:
 	def = fighter_def
-	weapon = Sim.weapon_of(def.weapon)
+	kind = weapon_id if weapon_id != "" else def.weapon
+	weapon = Sim.weapon_of(kind)
+	style = STYLES.get(kind, STYLES.sword)
+	STANCE = style.stance
 	clips = Clips.table()
 	tilt = Node3D.new(); add_child(tilt)
 	var body: Node3D = (load(MODELS[def.id]) as PackedScene).instantiate()
@@ -55,21 +68,21 @@ func setup(fighter_def: Dictionary) -> FighterView:
 	for b in Clips.BONES: bone_ids.append(skeleton.find_bone(b))
 
 	blade_mat = StandardMaterial3D.new()
-	blade_mat.albedo_color = Color(0.86, 0.88, 0.9); blade_mat.metallic = 0.95; blade_mat.roughness = 0.2
+	blade_mat.albedo_color = Color(0.86, 0.88, 0.9); blade_mat.metallic = 0.85; blade_mat.roughness = 0.28
 	blade_mat.emission_enabled = true
-	if def.weapon == "katana": base_emission = Color(0.35, 0.03, 0.05)
-	elif def.weapon == "divine":
+	if kind == "katana": base_emission = Color(0.35, 0.03, 0.05)
+	elif def.id == "sun_warlord":
 		blade_mat.albedo_color = Color(0.98, 0.9, 0.62); base_emission = Color(0.35, 0.24, 0.05)
 	blade_mat.emission = base_emission
 	# The hand bone lives in centimetre space; the holder undoes that so the weapon can be built in metres.
 	var hand := BoneAttachment3D.new(); hand.bone_name = "RightHand"; skeleton.add_child(hand)
 	var holder := Node3D.new(); hand.add_child(holder)
 	holder.scale = Vector3.ONE * 100.0
-	held = _build_weapon(def.weapon); held.rotation.x = PI / 4; holder.add_child(held)
+	held = _build_weapon(_model_kind()); held.rotation.x = PI / 4; holder.add_child(held)
 	set_kind = "HumanF_" if def.id == "wuixi" else "HumanM_"
 	# A second copy that lies on the ground while the fighter is disarmed.
 	dropped = Node3D.new(); dropped.visible = false; dropped.top_level = true; add_child(dropped)
-	var spare := _build_weapon(def.weapon); spare.rotation = Vector3(0, 0.6, PI / 2); spare.position.y = 0.07; dropped.add_child(spare)
+	var spare := _build_weapon(_model_kind()); spare.rotation = Vector3(0, 0.6, PI / 2); spare.position.y = 0.07; dropped.add_child(spare)
 	var marker := MeshInstance3D.new(); var tm := TorusMesh.new(); tm.inner_radius = 0.5; tm.outer_radius = 0.58; marker.mesh = tm
 	var mm := StandardMaterial3D.new(); mm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; mm.albedo_color = Color(1, 0.85, 0.3, 0.8); mm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	marker.material_override = mm; marker.position.y = 0.05; dropped.add_child(marker)
@@ -80,11 +93,12 @@ func setup(fighter_def: Dictionary) -> FighterView:
 	am.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; am.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; am.cull_mode = BaseMaterial3D.CULL_DISABLED
 	aura.material_override = am; aura.position.y = 1.05; aura.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; aura.visible = false; add_child(aura)
 	# the streak a blade leaves through the air, so a slash can be seen and read
-	tip_y = {"katana": 0.93, "divine": 1.1}.get(def.weapon, 1.05)
+	tip_y = 0.93 if kind == "katana" else style.tip
 	trail = MeshInstance3D.new(); trail.mesh = ImmediateMesh.new(); trail.top_level = true; trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var tm2 := StandardMaterial3D.new(); tm2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; tm2.vertex_color_use_as_albedo = true
 	tm2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; tm2.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; tm2.cull_mode = BaseMaterial3D.CULL_DISABLED
 	trail.material_override = tm2; add_child(trail)
+	if weapon.shield: call_deferred("_add_shield")
 	glow_light = OmniLight3D.new(); glow_light.light_color = FOCUS_GLOW; glow_light.omni_range = 3.5; glow_light.position = Vector3(0, 1.3, 0.5); glow_light.visible = false; add_child(glow_light)
 	return self
 
@@ -93,6 +107,44 @@ func _part(mesh: Mesh, mat: Material, pos: Vector3) -> MeshInstance3D:
 
 func _std(color: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new(); m.albedo_color = color; m.metallic = metal; m.roughness = rough; return m
+
+func _model_kind() -> String:
+	if kind == "greatsword" or kind == "axe" or kind == "katana": return kind
+	return "divine" if def.id == "sun_warlord" else "sword"
+
+## The shield sits on the left hand, turned so that in the guard pose it stands upright and faces the enemy.
+func _add_shield() -> void:
+	var hand := BoneAttachment3D.new(); hand.bone_name = "LeftHand"; skeleton.add_child(hand)
+	var holder := Node3D.new(); holder.scale = Vector3.ONE * 100.0; hand.add_child(holder)
+	shield = Node3D.new(); holder.add_child(shield)
+	var rim := _std(Color(0.5, 0.42, 0.25), 0.8, 0.4)
+	var face := _std(Color(0.2, 0.035, 0.035) if def.id != "sun_warlord" else Color(0.75, 0.72, 0.66), 0.25, 0.55)
+	# a kite shield: a rounded top narrowing to a point, gently curved round the arm
+	var st := SurfaceTool.new(); st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var outline := []
+	for i in 13:
+		var a := PI * i / 12.0
+		outline.append(Vector2(cos(a) * 0.27, 0.16 + sin(a) * 0.2))
+	outline.append(Vector2(-0.27, 0.0)); outline.append(Vector2(-0.14, -0.38)); outline.append(Vector2(0.0, -0.56)); outline.append(Vector2(0.14, -0.38)); outline.append(Vector2(0.27, 0.0))
+	var bulge := func(p: Vector2) -> Vector3: return Vector3(p.x, p.y, 0.07 - p.x * p.x * 0.9)
+	for i in outline.size():
+		var a2: Vector2 = outline[i]
+		var b2: Vector2 = outline[(i + 1) % outline.size()]
+		for v in [Vector2(0, -0.05), a2, b2]:
+			st.set_normal(Vector3(v.x * 1.5, 0, 1).normalized()); st.add_vertex(bulge.call(v))
+	st.generate_normals()
+	var plate := MeshInstance3D.new(); plate.mesh = st.commit()
+	var fm := face; fm.cull_mode = BaseMaterial3D.CULL_DISABLED; plate.material_override = fm; shield.add_child(plate)
+	var boss := SphereMesh.new(); boss.radius = 0.07; boss.height = 0.09
+	shield.add_child(_part(boss, rim, Vector3(0, -0.02, 0.075)))
+	# find the turn that stands it upright, facing forward, when the guard is up
+	var g: Array = style.guard
+	weights = {g[0]: 1.0}; times = {g[0]: 0.3}; _apply(); skeleton.force_update_all_bone_transforms()
+	var hb := (skeleton.global_transform * skeleton.get_bone_global_pose(skeleton.find_bone("LeftHand"))).basis.orthonormalized()
+	var here := global_transform.basis.orthonormalized()
+	shield.basis = hb.inverse() * here                     # shield axes = the fighter's own: x across, y up, z forward
+	shield.position = hb.inverse() * (here * Vector3(0.0, 0.02, 0.07))
+	weights.clear()
 
 ## A real blade shape: a flat diamond in cross-section with sharp edges, tapering to a point. Base at y = 0.
 func _blade(length: float, width: float, thick: float, taper_from := 0.8, base_width := -1.0) -> ArrayMesh:
@@ -133,7 +185,21 @@ func _build_weapon(kind: String) -> Node3D:
 			var arm := _part(cyl.call(0.007, 0.015, span), mat, Vector3(0, 0.115 + sweep * span * 0.5, side * (0.03 + span * 0.5)))
 			arm.rotation.x = side * (PI / 2 - sweep); g.add_child(arm)
 			g.add_child(_part(ball.call(0.012), mat, Vector3(0, 0.115 + sweep * span, side * (0.03 + span))))
-	if kind == "katana":
+	if kind == "greatsword":
+		# A two-handed sword: a long broad blade, a wide guard and a grip long enough for both hands.
+		g.add_child(_part(_blade(1.32, 0.075, 0.016, 0.82, 0.09), blade_mat, Vector3(0, 0.2, 0)))
+		g.add_child(_part(_blade(0.8, 0.018, 0.018, 0.9), _std(Color(0.25, 0.26, 0.28), 0.9, 0.4), Vector3(0, 0.21, 0)))
+		g.add_child(_part(cyl.call(0.019, 0.021, 0.42), leather, Vector3(0, -0.02, 0)))
+		g.add_child(_part(box.call(0.04, 0.035, 0.36), steel, Vector3(0, 0.19, 0)))
+		g.add_child(_part(ball.call(0.04), steel, Vector3(0, -0.25, 0)))
+	elif kind == "axe":
+		# A war axe: a long ash haft with a bearded steel head and a back spike.
+		g.add_child(_part(cyl.call(0.02, 0.023, 1.15), _std(Color(0.32, 0.22, 0.13), 0.0, 0.8), Vector3(0, 0.38, 0)))
+		var head := _part(_blade(0.3, 0.34, 0.03, 0.0, 0.1), blade_mat, Vector3(0, 0.88, 0.02)); head.rotation.x = PI / 2; g.add_child(head)
+		var spike := _part(_blade(0.14, 0.05, 0.03, 0.2), steel, Vector3(0, 0.88, -0.02)); spike.rotation.x = -PI / 2; g.add_child(spike)
+		g.add_child(_part(_blade(0.12, 0.04, 0.03, 0.2), steel, Vector3(0, 0.95, 0)))
+		g.add_child(_part(cyl.call(0.027, 0.027, 0.1), steel, Vector3(0, 0.88, 0)))
+	elif kind == "katana":
 		# A long slender blade with a gentle backward curve, a round guard and a grip bound in crimson.
 		var n := 12
 		var length := 0.78
@@ -212,7 +278,10 @@ func _pose(f: Dictionary, dt: float) -> void:
 			"guard":
 				# Weapon raised across the body and held there. A blow landing on it jolts it back for a moment.
 				var jolt: float = (f.guardRest - 1.05) * 1.6 if f.guardRest > 1.05 else 0.0
-				_show(want, "Sword_Parry_Backward", 0.1 + min(1.0, f.t / 0.14) * 0.3 + jolt); fade = 34.0
+				var g: Array = style.guard
+				if g[1] < 0: _show(want, g[0], fposmod(f.t, clips[g[0]].length))
+				else: _show(want, g[0], g[1] - 0.3 + min(1.0, f.t / 0.14) * 0.3 + (jolt if g[0] == "Sword_Parry_Backward" else 0.0))
+				fade = 30.0
 			"dodge":
 				# Dodging straight back is a hop that keeps the fighter facing the enemy; any other way is a roll.
 				hop = f.ddx * sin(f.yaw) + f.ddz * cos(f.yaw) < -0.6
@@ -222,7 +291,7 @@ func _pose(f: Dictionary, dt: float) -> void:
 					_show(want, "Roll_Dodge", 0.32 + min(1.0, f.t / 0.55) * 1.3); fade = 30.0
 			"stagger":
 				# Two different flinches, picked each time a new hit lands, so repeated hits do not look identical.
-				if last_state != "stagger" or f.t < last_t: flinch = ["Hit_Reaction_1", "Hit_Reaction_to_Waist", "Hit_Chest", "Hit_Head"].pick_random()
+				if last_state != "stagger" or f.t < last_t: flinch = (style.flinch as Array).pick_random()
 				var clip: String = "Hit_Reaction" if f.parried else flinch
 				var length: float = 1.3 if f.parried else (0.85 if clip == "Hit_Reaction_1" else (1.2 if clip == "Hit_Reaction_to_Waist" else clips[clip].length))
 				_show(want, clip, min(1.0, f.t / f.staggerDur) * length); fade = 25.0
