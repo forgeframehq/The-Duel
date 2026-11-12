@@ -2,7 +2,7 @@ extends Node3D
 ## The Duel, Godot edition. This script runs the whole game: the menu, a match, the camera, sounds and effects.
 ## The rules themselves are in scripts/sim.gd; this only feeds them the player's thumbs and shows what they decide.
 
-const VERSION := "0.7"
+const VERSION := "0.8"
 ## Camera angles. The game offers two, switched with the button under the clock: Shoulder (index 3; close behind the player, the
 ## sword arm in frame, the default) and Side-on (index 4). The first three are kept for testing (DUEL_CAM=0..2). dist: how far behind the player; side: how far off the shoulder; pitch: how steeply it
 ## looks down. "Side-on" stands off to one side of the two fighters instead, like a classic fighting game.

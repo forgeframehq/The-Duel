@@ -42,7 +42,7 @@ W.sword_shield = variant('sword', 'Sword and shield', 1.06, 1.0, 0, { guardCost:
 W.greatsword = variant('sword', 'Greatsword', 1.3, 1.4, 0.4, { hands: 2, guardDmg: 1.3 }, {
   h: [['gs_great_sword_slash', 0.15, 0.53, 1.0], ['gs_great_sword_slash_3', 0.25, 0.77, 1.4], ['gs_great_sword_slash_2', 1.2, 1.67, 2.2]],
   v: [['gs_great_sword_attack', 0.05, 0.43, 1.0], ['gs_great_sword_slash_2', 2.1, 2.53, 3.3]] });
-W.axe = variant('sword', 'War axe', 1.22, 1.3, 0.1, { hands: 2, guardDmg: 1.7 }, {
+W.axe = variant('sword', 'Warhammer', 1.22, 1.3, 0.1, { hands: 2, guardDmg: 1.7 }, {
   h: [['ax_standing_melee_attack_horizontal', 0.5, 0.97, 1.6], ['ax_standing_melee_attack_backhand', 0.55, 1.0, 1.6], ['ax_standing_melee_attack_360_high', 0.5, 1.07, 1.9]],
   v: [['ax_standing_melee_attack_downward', 0.35, 0.83, 1.4], ['ax_standing_melee_combo_attack_ver_3', 0.5, 1.0, 1.5]] });
 

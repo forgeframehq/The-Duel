@@ -68,11 +68,11 @@ func setup(fighter_def: Dictionary, weapon_id := "") -> FighterView:
 	for b in Clips.BONES: bone_ids.append(skeleton.find_bone(b))
 
 	blade_mat = StandardMaterial3D.new()
-	blade_mat.albedo_color = Color(0.86, 0.88, 0.9); blade_mat.metallic = 0.85; blade_mat.roughness = 0.28
+	blade_mat.albedo_color = Color(0.86, 0.88, 0.9) if kind == "katana" else Color.WHITE; blade_mat.metallic = 0.85; blade_mat.roughness = 0.28
 	blade_mat.emission_enabled = true
 	if kind == "katana": base_emission = Color(0.35, 0.03, 0.05)
 	elif def.id == "sun_warlord":
-		blade_mat.albedo_color = Color(0.98, 0.9, 0.62); base_emission = Color(0.35, 0.24, 0.05)
+		blade_mat.albedo_color = Color(1.0, 0.93, 0.72); base_emission = Color(0.14, 0.1, 0.02)
 	blade_mat.emission = base_emission
 	# The hand bone lives in centimetre space; the holder undoes that so the weapon can be built in metres.
 	var hand := BoneAttachment3D.new(); hand.bone_name = "RightHand"; skeleton.add_child(hand)
@@ -93,7 +93,7 @@ func setup(fighter_def: Dictionary, weapon_id := "") -> FighterView:
 	am.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; am.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; am.cull_mode = BaseMaterial3D.CULL_DISABLED
 	aura.material_override = am; aura.position.y = 1.05; aura.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; aura.visible = false; add_child(aura)
 	# the streak a blade leaves through the air, so a slash can be seen and read
-	tip_y = 0.93 if kind == "katana" else style.tip
+	if not MODELS_W.has(_model_kind()): tip_y = 0.93 if kind == "katana" else style.tip
 	trail = MeshInstance3D.new(); trail.mesh = ImmediateMesh.new(); trail.top_level = true; trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var tm2 := StandardMaterial3D.new(); tm2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; tm2.vertex_color_use_as_albedo = true
 	tm2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; tm2.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; tm2.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -117,6 +117,11 @@ func _add_shield() -> void:
 	var hand := BoneAttachment3D.new(); hand.bone_name = "LeftHand"; skeleton.add_child(hand)
 	var holder := Node3D.new(); holder.scale = Vector3.ONE * 100.0; hand.add_child(holder)
 	shield = Node3D.new(); holder.add_child(shield)
+	var use_model := ResourceLoader.exists("res://weapons/Wooden_Shield.fbx")
+	if use_model:
+		var sm := StandardMaterial3D.new(); sm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		var fitted := _fit_shield(sm)
+		shield.add_child(fitted)
 	var rim := _std(Color(0.5, 0.42, 0.25), 0.8, 0.4)
 	var face := _std(Color(0.2, 0.035, 0.035) if def.id != "sun_warlord" else Color(0.75, 0.72, 0.66), 0.25, 0.55)
 	# a kite shield: a rounded top narrowing to a point, gently curved round the arm
@@ -133,10 +138,11 @@ func _add_shield() -> void:
 		for v in [Vector2(0, -0.05), a2, b2]:
 			st.set_normal(Vector3(v.x * 1.5, 0, 1).normalized()); st.add_vertex(bulge.call(v))
 	st.generate_normals()
-	var plate := MeshInstance3D.new(); plate.mesh = st.commit()
-	var fm := face; fm.cull_mode = BaseMaterial3D.CULL_DISABLED; plate.material_override = fm; shield.add_child(plate)
-	var boss := SphereMesh.new(); boss.radius = 0.07; boss.height = 0.09
-	shield.add_child(_part(boss, rim, Vector3(0, -0.02, 0.075)))
+	if not use_model:
+		var plate := MeshInstance3D.new(); plate.mesh = st.commit()
+		var fm := face; fm.cull_mode = BaseMaterial3D.CULL_DISABLED; plate.material_override = fm; shield.add_child(plate)
+		var boss := SphereMesh.new(); boss.radius = 0.07; boss.height = 0.09
+		shield.add_child(_part(boss, rim, Vector3(0, -0.02, 0.075)))
 	# find the turn that stands it upright, facing forward, when the guard is up
 	var g: Array = style.guard
 	weights = {g[0]: 1.0}; times = {g[0]: 0.3}; _apply(); skeleton.force_update_all_bone_transforms()
@@ -145,6 +151,69 @@ func _add_shield() -> void:
 	shield.basis = hb.inverse() * here                     # shield axes = the fighter's own: x across, y up, z forward
 	shield.position = hb.inverse() * (here * Vector3(0.0, 0.02, 0.07))
 	weights.clear()
+
+## Real weapon models (Wildenza's Medieval Weapons pack, CC0): which file each kind of weapon uses, how long it should be
+## in the hand (metres), and whether the heavy end is far from the grip (a hammer) or the grip sits behind a crossguard (a sword).
+const MODELS_W := {
+	"sword": ["Shortsword", 1.02, false], "divine": ["Shortsword", 1.08, false],
+	"greatsword": ["Claymore", 1.6, false], "axe": ["Warhammer", 1.15, true],
+}
+
+## Load a weapon model and stand it the way the game holds weapons: grip at the origin, business end up +Y, the flat of the
+## blade facing sideways. The pack's files come in assorted sizes and directions, so this is worked out from the shape itself.
+func _fit_model(file: String, length: float, heavy_end: bool, mat: StandardMaterial3D) -> Node3D:
+	var scene: Node3D = (load("res://weapons/%s.fbx" % file) as PackedScene).instantiate()
+	var mi: MeshInstance3D = scene.find_children("*", "MeshInstance3D", true, false)[0]
+	var xf := _chain(scene, mi)
+	var pts := PackedVector3Array()
+	for v in mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]: pts.append(xf * v)
+	var lo := pts[0]; var hi := pts[0]
+	for v in pts:
+		lo = lo.min(v); hi = hi.max(v)
+	var ext := hi - lo
+	var long := ext.max_axis_index()
+	var others := [0, 1, 2].filter(func(a): return a != long)
+	var wide: int = others[0] if ext[others[0]] > ext[others[1]] else others[1]
+	var thin: int = others[1] if wide == others[0] else others[0]
+	# find where along its length the model is widest: a sword's crossguard, a hammer's head
+	var bins := 40
+	var w_lo := []; var w_hi := []
+	w_lo.resize(bins); w_hi.resize(bins); w_lo.fill(1e9); w_hi.fill(-1e9)
+	for v in pts:
+		var b: int = clampi(int((v[long] - lo[long]) / ext[long] * bins), 0, bins - 1)
+		w_lo[b] = min(w_lo[b], v[wide]); w_hi[b] = max(w_hi[b], v[wide])
+	var widest := 0
+	for b in bins:
+		if w_hi[b] - w_lo[b] > w_hi[widest] - w_lo[widest]: widest = b
+	var at: float = (widest + 0.5) / bins                  # 0 to 1 along the length
+	var up_is_plus: bool = at > 0.5 if heavy_end else at < 0.5      # which way the business end points
+	var grip_at: float
+	if heavy_end: grip_at = 0.22 if up_is_plus else 0.78             # hold a hammer a quarter of the way up the haft
+	else: grip_at = at / 2.0 if up_is_plus else (at + 1.0) / 2.0     # hold a sword between crossguard and pommel
+	var k := length / ext[long]
+	var y := Vector3.ZERO; y[long] = 1.0 if up_is_plus else -1.0
+	var z := Vector3.ZERO; z[wide] = 1.0
+	var x := y.cross(z)
+	var basis := Basis(x, y, z).inverse()                    # model axes -> held axes
+	var centre := (lo + hi) / 2.0
+	var grip := centre; grip[long] = lo[long] + ext[long] * grip_at
+	var holder := Node3D.new()
+	scene.transform = Transform3D(basis.scaled(Vector3.ONE * k), -(basis * grip) * k)
+	holder.add_child(scene)
+	mat.albedo_texture = load("res://weapons/%s_BaseColor.png" % file)
+	mat.normal_enabled = true; mat.normal_texture = load("res://weapons/%s_Normal.png" % file)
+	mat.metallic = 0.45; mat.metallic_texture = load("res://weapons/%s_Metallic.png" % file)      # full metal mirrors the brown rock in the sky photo and turns blades brown
+	mat.roughness = 1.0; mat.roughness_texture = load("res://weapons/%s_Roughness.png" % file)
+	mi.material_override = mat
+	tip_y = length * ((1.0 - grip_at) if up_is_plus else grip_at)
+	return holder
+
+func _chain(top: Node3D, node: Node3D) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	var cur: Node = node
+	while cur != top and cur is Node3D:
+		t = (cur as Node3D).transform * t; cur = cur.get_parent()
+	return t
 
 ## A real blade shape: a flat diamond in cross-section with sharp edges, tapering to a point. Base at y = 0.
 func _blade(length: float, width: float, thick: float, taper_from := 0.8, base_width := -1.0) -> ArrayMesh:
@@ -164,6 +233,9 @@ func _blade(length: float, width: float, thick: float, taper_from := 0.8, base_w
 
 ## Weapons are built here, pointing along +Y from the grip, in metres.
 func _build_weapon(kind: String) -> Node3D:
+	if MODELS_W.has(kind):
+		var m: Array = MODELS_W[kind]
+		return _fit_model(m[0], m[1], m[2], blade_mat)
 	var g := Node3D.new()
 	var gold := _std(Color(0.83, 0.62, 0.22), 0.9, 0.28)
 	var steel := _std(Color(0.55, 0.57, 0.6), 0.9, 0.35)
@@ -421,3 +493,29 @@ func _trail(f: Dictionary, dt: float) -> void:
 		im.surface_set_color(Color(tint.r, tint.g, tint.b, 0.0)); im.surface_add_vertex(p[0])
 		im.surface_set_color(Color(tint.r, tint.g, tint.b, a * a * 0.75)); im.surface_add_vertex(p[1])
 	im.surface_end()
+
+## The wooden shield model, stood upright: tallest side up, thinnest side front to back, about 0.8 m tall.
+func _fit_shield(mat: StandardMaterial3D) -> Node3D:
+	var keep := tip_y
+	var scene: Node3D = (load("res://weapons/Wooden_Shield.fbx") as PackedScene).instantiate()
+	var mi: MeshInstance3D = scene.find_children("*", "MeshInstance3D", true, false)[0]
+	var xf := _chain(scene, mi)
+	var lo := Vector3.ONE * 1e9; var hi := Vector3.ONE * -1e9
+	for v in mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		lo = lo.min(xf * v); hi = hi.max(xf * v)
+	var ext := hi - lo
+	var tall := ext.max_axis_index()
+	var thin := ext.min_axis_index()
+	var y := Vector3.ZERO; y[tall] = 1.0
+	var z := Vector3.ZERO; z[thin] = 1.0
+	var basis := Basis(y.cross(z), y, z).inverse()
+	var k := 0.8 / ext[tall]
+	scene.transform = Transform3D(basis.scaled(Vector3.ONE * k), -(basis * ((lo + hi) / 2.0)) * k)
+	mat.albedo_texture = load("res://weapons/Wooden_Shield_BaseColor.png")
+	mat.normal_enabled = true; mat.normal_texture = load("res://weapons/Wooden_Shield_Normal.png")
+	mat.metallic = 1.0; mat.metallic_texture = load("res://weapons/Wooden_Shield_Metallic.png")
+	mat.roughness = 1.0; mat.roughness_texture = load("res://weapons/Wooden_Shield_Roughness.png")
+	mi.material_override = mat
+	tip_y = keep
+	var holder := Node3D.new(); holder.add_child(scene)
+	return holder
