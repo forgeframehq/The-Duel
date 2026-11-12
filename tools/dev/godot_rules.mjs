@@ -66,11 +66,43 @@ function fencer(label, time, dmg, long, guardDmg) {
   delete w.dir.VF;                       // the leaping blow is gone: stick toward the enemy + V is a plain vertical cut
   return w;
 }
-W.f_sword = fencer('Sword', 1.0, 1.0, 0, 1.0);
-W.f_katana = fencer('Katana', 0.9, 0.92, 0.05, 0.9);
-W.f_mace = fencer('Mace', 1.14, 1.2, -0.05, 1.45);
-W.f_hammer = fencer('Hammer', 1.24, 1.34, 0, 1.75);
-W.f_dagger = fencer('Dagger', 0.8, 0.76, -0.35, 0.7);
+// ---- Swords only (Sudhi, 11 Nov 21:56): the one weapon is a sword, in five kinds. They share one move set and differ in
+// pace (how fast the animation is played), damage, blade length (hand to tip, metres: reach comes from the blade itself)
+// and how hard they wear a shield down.
+function sword(label, rate, dmg, len, guardDmg) {
+  const w = fencer(label, 1 / rate, dmg, 0, guardDmg);
+  return Object.assign(w, { rate, len });
+}
+W.f_short = sword('Shortsword', 1.12, 0.86, 0.70, 0.8);
+W.f_long = sword('Longsword', 1.0, 1.0, 0.92, 1.0);
+W.f_katana = sword('Katana', 1.08, 0.94, 0.86, 0.85);
+W.f_sabre = sword('Sabre', 1.04, 0.96, 0.82, 1.3);
+W.f_broad = sword('Broadsword', 0.88, 1.28, 0.90, 1.55);
+W.f_sword = W.f_long;
+// Animation first (copied from how the open-source Godot souls-like projects do it: Snaiel's Godot4ThirdPersonCombatPrototype,
+// Prashanna135's Souls-Like-Controller, Cat Prisbrey's root-motion template). A `path` move is not given timings here: it names
+// a stretch of a clip [clip, start, end] and how fast to play it; tools/moves_bake.gd reads the clip and works out when the
+// blade is dangerous, where the blade is at every moment, how far the feet carry the body, and when the next move may begin.
+// Measured on the skeleton (tests/moves_bake.gd prints which way each blade travels), so a Horizontal really is a cut across
+// and a Vertical really comes down: slash, slash_3, slash_5, attack_2 and attack_3 go across; the third cut of slash_2,
+// slash_4 and attack (a leap) come straight down; the second cut of slash_2 rises. (attack_4, the old first Vertical, turned
+// out to be a punch with the hilt: the blade never reached the enemy.)
+const PATH = {
+  h1: [SS('slash'), 0.15, 1.15, 1.25], h2: [SS('slash_3'), 0.35, 1.35, 1.25], h3: [SS('slash_5'), 0.15, 1.3, 1.15],
+  v1: [SS('slash_2'), 2.05, 3.0, 1.2], v2: [SS('slash_2'), 0.3, 1.1, 1.15],
+  HHV: [SS('slash_2'), 0.95, 1.8, 1.15], VVV: [SS('attack'), 0.5, 2.0, 1.1], VVH: [SS('attack_3'), 0.3, 1.5, 1.1],
+  HF: [SS('attack_2'), 0.1, 1.1, 1.15], focusH: [SS('attack_3'), 0.42, 1.5, 1.0], focusV: [SS('slash_4'), 1.0, 2.2, 1.0],
+};
+const setPath = (a, k) => { const [clip, start, end, rate] = PATH[k]; Object.assign(a, { path: true, move: `${clip}@${start}-${end}`, clip, start, end, rate0: rate }); };
+for (const id of ['f_short', 'f_long', 'f_katana', 'f_sabre', 'f_broad']) {
+  const w = W[id];
+  setPath(w.h[0], 'h1'); setPath(w.h[1], 'h2'); setPath(w.h[2], 'h3'); setPath(w.v[0], 'v1'); setPath(w.v[1], 'v2');
+  setPath(w.strings.HHH, 'h3');
+  for (const k of ['HHV', 'VVV', 'VVH']) setPath(w.strings[k], k);
+  w.launch = w.strings.HHV;
+  setPath(w.dir.HF, 'HF'); setPath(w.focusH, 'focusH'); setPath(w.focusV, 'focusV');
+}
+for (const id of ['sword', 'divine', 'mace', 'spear', 'katana', 'sword_shield', 'greatsword', 'axe']) delete W[id];
 // Shields. cost: how much of the guard a blocked hit takes; arc: how far round the body it covers; parry: how long after
 // raising it a blow is parried (seconds); heavy: how much of the guard a heavy attack takes (1 = 70 of 100).
 const SHIELDS = {

@@ -72,7 +72,7 @@ func setup(fighter_def: Dictionary, weapon_id := "", shield := "wood") -> Fighte
 	for b in Clips.BONES: bone_ids.append(skeleton.find_bone(b))
 
 	blade_mat = StandardMaterial3D.new()
-	blade_mat.albedo_color = Color(0.86, 0.88, 0.9) if kind == "f_katana" else Color.WHITE; blade_mat.metallic = 0.85; blade_mat.roughness = 0.28
+	blade_mat.albedo_color = Color(0.86, 0.88, 0.9) if (kind == "f_katana" or kind == "f_sabre") else Color.WHITE; blade_mat.metallic = 0.85; blade_mat.roughness = 0.28
 	blade_mat.emission_enabled = true
 	if kind == "f_katana": base_emission = Color(0.35, 0.03, 0.05)
 	elif def.id == "sun_warlord":
@@ -97,7 +97,7 @@ func setup(fighter_def: Dictionary, weapon_id := "", shield := "wood") -> Fighte
 	am.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; am.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; am.cull_mode = BaseMaterial3D.CULL_DISABLED
 	aura.material_override = am; aura.position.y = 1.05; aura.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF; aura.visible = false; add_child(aura)
 	# the streak a blade leaves through the air, so a slash can be seen and read
-	if not MODELS_W.has(_model_kind()): tip_y = 0.93
+	tip_y = weapon.get("len", 0.9)        # the streak ends where the rules say the blade ends
 	trail = MeshInstance3D.new(); trail.mesh = ImmediateMesh.new(); trail.top_level = true; trail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var tm2 := StandardMaterial3D.new(); tm2.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; tm2.vertex_color_use_as_albedo = true
 	tm2.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA; tm2.blend_mode = BaseMaterial3D.BLEND_MODE_ADD; tm2.cull_mode = BaseMaterial3D.CULL_DISABLED
@@ -113,12 +113,7 @@ func _std(color: Color, metal := 0.0, rough := 0.7) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new(); m.albedo_color = color; m.metallic = metal; m.roughness = rough; return m
 
 func _model_kind() -> String:
-	match kind:
-		"f_katana": return "katana"
-		"f_mace": return "mace"
-		"f_hammer": return "hammer"
-		"f_dagger": return "dagger"
-	return "divine" if def.id == "sun_warlord" else "sword"
+	return kind if (MODELS_W.has(kind) or kind == "f_katana" or kind == "f_sabre") else "f_long"
 
 ## The shield sits on the left hand, turned so that in the guard pose it stands upright and faces the enemy.
 func _add_shield() -> void:
@@ -162,15 +157,15 @@ func _add_shield() -> void:
 ## Real weapon models (Wildenza's Medieval Weapons pack, CC0): which file each kind of weapon uses, how long it should be
 ## in the hand (metres), and whether the heavy end is far from the grip (a hammer) or the grip sits behind a crossguard (a sword).
 const MODELS_W := {
-	"sword": ["Shortsword", 1.02, false], "divine": ["Shortsword", 1.08, false],
-	"mace": ["Iron_Mace", 0.86, true], "hammer": ["Hammer", 0.92, true], "dagger": ["Dagger_1", 0.56, false],
+	"f_short": ["Shortsword", 1.0], "f_long": ["Claymore", 1.0], "f_broad": ["Claymore", 1.3],      # [file, how much wider than the model is made]
 }
 ## shield models: file and height in metres ("kite" is built in code)
 const SHIELDS_W := {"wood": ["Wooden_Shield", 0.8], "buckler": ["Buckler", 0.46]}
 
 ## Load a weapon model and stand it the way the game holds weapons: grip at the origin, business end up +Y, the flat of the
 ## blade facing sideways. The pack's files come in assorted sizes and directions, so this is worked out from the shape itself.
-func _fit_model(file: String, length: float, heavy_end: bool, mat: StandardMaterial3D) -> Node3D:
+## `length` is from the hand to the tip (the rules' blade length); `widen` broadens the blade without lengthening it.
+func _fit_model(file: String, length: float, heavy_end: bool, mat: StandardMaterial3D, widen := 1.0) -> Node3D:
 	var scene: Node3D = (load("res://weapons/%s.fbx" % file) as PackedScene).instantiate()
 	var mi: MeshInstance3D = scene.find_children("*", "MeshInstance3D", true, false)[0]
 	var xf := _chain(scene, mi)
@@ -198,8 +193,8 @@ func _fit_model(file: String, length: float, heavy_end: bool, mat: StandardMater
 	var up_is_plus: bool = at > 0.5 if heavy_end else at < 0.5      # which way the business end points
 	var grip_at: float
 	if heavy_end: grip_at = 0.22 if up_is_plus else 0.78             # hold a hammer a quarter of the way up the haft
-	else: grip_at = at / 2.0 if up_is_plus else (at + 1.0) / 2.0     # hold a sword between crossguard and pommel
-	var k := length / ext[long]
+	else: grip_at = at * 0.7 if up_is_plus else at + (1.0 - at) * 0.3     # hold a sword just behind the crossguard, in one hand
+	var k := length / (ext[long] * ((1.0 - grip_at) if up_is_plus else grip_at))
 	var y := Vector3.ZERO; y[long] = 1.0 if up_is_plus else -1.0
 	var z := Vector3.ZERO; z[wide] = 1.0
 	var x := y.cross(z)
@@ -207,14 +202,14 @@ func _fit_model(file: String, length: float, heavy_end: bool, mat: StandardMater
 	var centre := (lo + hi) / 2.0
 	var grip := centre; grip[long] = lo[long] + ext[long] * grip_at
 	var holder := Node3D.new()
-	scene.transform = Transform3D(basis.scaled(Vector3.ONE * k), -(basis * grip) * k)
+	var size := Vector3(k, k, k * widen)
+	scene.transform = Transform3D(basis.scaled(size), -(basis * grip) * size)
 	holder.add_child(scene)
 	mat.albedo_texture = load("res://weapons/%s_BaseColor.png" % file)
 	mat.normal_enabled = true; mat.normal_texture = load("res://weapons/%s_Normal.png" % file)
 	mat.metallic = 0.45; mat.metallic_texture = load("res://weapons/%s_Metallic.png" % file)      # full metal mirrors the brown rock in the sky photo and turns blades brown
 	mat.roughness = 1.0; mat.roughness_texture = load("res://weapons/%s_Roughness.png" % file)
 	mi.material_override = mat
-	tip_y = length * ((1.0 - grip_at) if up_is_plus else grip_at)
 	return holder
 
 func _chain(top: Node3D, node: Node3D) -> Transform3D:
@@ -242,9 +237,11 @@ func _blade(length: float, width: float, thick: float, taper_from := 0.8, base_w
 
 ## Weapons are built here, pointing along +Y from the grip, in metres.
 func _build_weapon(kind: String) -> Node3D:
+	var reach: float = weapon.get("len", 0.9)
 	if MODELS_W.has(kind):
 		var m: Array = MODELS_W[kind]
-		return _fit_model(m[0], m[1], m[2], blade_mat)
+		if def.id == "sun_warlord": blade_mat.albedo_color = Color(1.0, 0.9, 0.62)      # Aurelian's steel is gilded
+		return _fit_model(m[0], reach, false, blade_mat, m[1])
 	var g := Node3D.new()
 	var gold := _std(Color(0.83, 0.62, 0.22), 0.9, 0.28)
 	var steel := _std(Color(0.55, 0.57, 0.6), 0.9, 0.35)
@@ -280,10 +277,30 @@ func _build_weapon(kind: String) -> Node3D:
 		var spike := _part(_blade(0.14, 0.05, 0.03, 0.2), steel, Vector3(0, 0.88, -0.02)); spike.rotation.x = -PI / 2; g.add_child(spike)
 		g.add_child(_part(_blade(0.12, 0.04, 0.03, 0.2), steel, Vector3(0, 0.95, 0)))
 		g.add_child(_part(cyl.call(0.027, 0.027, 0.1), steel, Vector3(0, 0.88, 0)))
-	elif kind == "katana":
+	elif kind == "f_sabre":
+		# A cavalry sabre: a broad single-edged blade with a deep curve, a brass knuckle-bow and a dark grip.
+		var n := 12
+		var length := reach - 0.12
+		for i in n:
+			var t0 := float(i) / n
+			var t1 := float(i + 1) / n
+			var z0 := -0.16 * t0 * t0
+			var z1 := -0.16 * t1 * t1
+			var last := i == n - 1
+			var seg := _part(_blade(length / n * 1.04, 0.046 * (1.0 - t1 * 0.2), 0.008, 0.05 if last else 1.0, 0.046 * (1.0 - t0 * 0.2)), blade_mat, Vector3(0, 0.12 + t0 * length, z0))
+			seg.rotation.x = atan2(z1 - z0, length / n)
+			g.add_child(seg)
+		grip.call(0.2, _std(Color(0.1, 0.08, 0.08), 0.1, 0.7))
+		g.add_child(_part(box.call(0.03, 0.022, 0.1), gold, Vector3(0, 0.112, 0.01)))
+		for i in 6:      # the knuckle-bow curving from the guard down to the pommel
+			var a := PI * i / 5.0
+			var link := _part(cyl.call(0.007, 0.007, 0.05), gold, Vector3(0, 0.0 + cos(a) * 0.105, 0.035 + sin(a) * 0.035)); link.rotation.x = a + PI / 2 if i != 0 and i != 5 else 0.0
+			g.add_child(link)
+		g.add_child(_part(ball.call(0.022), gold, Vector3(0, -0.115, 0)))
+	elif kind == "f_katana":
 		# A long slender blade with a gentle backward curve, a round guard and a grip bound in crimson.
 		var n := 12
-		var length := 0.78
+		var length := reach - 0.15
 		for i in n:
 			var t0 := float(i) / n
 			var t1 := float(i + 1) / n
@@ -351,9 +368,16 @@ func _pose(f: Dictionary, dt: float) -> void:
 			"attack":
 				var a: Dictionary = f.atk
 				var an: Array = a.anim
-				var t: float = an[1] + (an[2] - an[1]) * (f.t / a.windup) if f.t < a.windup else an[2] + (an[3] - an[2]) * min(1.0, (f.t - a.windup) / (a.active + a.recover))
-				# Blend in a touch slower at the very start of a swing, so one move flows into the next instead of snapping.
-				_show(want, an[0], t); fade = 11.0 if f.t < 0.12 else 20.0
+				var t: float
+				if a.path:
+					# Animation first: the clip simply plays, at the sword's own pace. The rules took their timing from it.
+					t = min(an[3], an[1] + f.t * a.rate)
+					fade = 9.0 if f.t < 0.16 else 18.0
+				else:
+					t = an[1] + (an[2] - an[1]) * (f.t / a.windup) if f.t < a.windup else an[2] + (an[3] - an[2]) * min(1.0, (f.t - a.windup) / (a.active + a.recover))
+					# Blend in a touch slower at the very start of a swing, so one move flows into the next instead of snapping.
+					fade = 11.0 if f.t < 0.12 else 20.0
+				_show(want, an[0], t)
 			"charge":
 				# Wound back and held, trembling, until the button is let go.
 				var atk: Dictionary = weapon.focusH if f.charge == "h" else weapon.focusV

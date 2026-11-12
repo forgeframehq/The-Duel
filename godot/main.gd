@@ -2,7 +2,7 @@ extends Node3D
 ## The Duel, Godot edition. This script runs the whole game: the menu, a match, the camera, sounds and effects.
 ## The rules themselves are in scripts/sim.gd; this only feeds them the player's thumbs and shows what they decide.
 
-const VERSION := "1.0"
+const VERSION := "1.1"
 ## Camera angles. The game offers two, switched with the button under the clock: Shoulder (index 3; close behind the player, the
 ## sword arm in frame, the default) and Side-on (index 4). The first three are kept for testing (DUEL_CAM=0..2). dist: how far behind the player; side: how far off the shoulder; pitch: how steeply it
 ## looks down. "Side-on" stands off to one side of the two fighters instead, like a classic fighting game.
@@ -34,7 +34,7 @@ var level := "normal"
 const ARENAS := {"storm": "Stormfield", "meadow": "Whispering Meadow"}
 var arena_pick := OS.get_environment("DUEL_ARENA") if OS.get_environment("DUEL_ARENA") != "" else "storm"
 ## The weapons a player can give any fighter. "sword" is drawn as each fighter's own blade.
-const ARMS := ["f_sword", "f_katana", "f_mace", "f_hammer", "f_dagger"]
+const ARMS := ["f_long", "f_short", "f_katana", "f_sabre", "f_broad"]      # swords only: one move set, five kinds of blade
 const SHIELDS := ["wood", "buckler", "kite"]
 var shield_pick := OS.get_environment("DUEL_SHIELD") if OS.get_environment("DUEL_SHIELD") != "" else "wood"
 var shields := ["wood", "wood"]
@@ -244,7 +244,7 @@ func _build_menu(layer: CanvasLayer) -> void:
 
 ## The weapon a fighter will carry: the player's choice for their own fighter, otherwise the fighter's usual one.
 func _arm_of(i: int) -> String:
-	var own := "f_katana" if roster[i].weapon == "katana" else "f_sword"
+	var own := "f_katana" if roster[i].weapon == "katana" else "f_long"
 	return arm if (arm != "" and i == pick) else own
 
 func _refresh_menu() -> void:

@@ -42,11 +42,68 @@ static var _data: Dictionary
 static func data() -> Dictionary:
 	if _data.is_empty():
 		_data = JSON.parse_string(FileAccess.get_file_as_string("res://data/rules.json"))
+		_data["moves"] = JSON.parse_string(FileAccess.get_file_as_string("res://data/moves.json")) if FileAccess.file_exists("res://data/moves.json") else {}
+		for w in _data.weapons.values(): _time_moves(w, _data.moves)
+		for sk in _data.skills.values():
+			if sk.atk != null: sk.atk.merge({"path": false, "cancel": 0.0, "rate": 1.0})
 	return _data
+
+## Animation first. A `path` move takes its timing from its clip (measured by tests/moves_bake.gd), played at the sword's
+## pace: the wind-up lasts until the blade is moving fast enough to cut, the cut lasts while it is, and `cancel` is the
+## moment in the follow-through from which the next move of a string may begin. Nothing is squeezed or stretched to fit.
+static func _time_moves(w: Dictionary, moves: Dictionary) -> void:
+	var list: Array = []
+	list.append_array(w.h); list.append_array(w.v); list.append_array(w.strings.values()); list.append_array(w.dir.values())
+	list.append(w.focusH); list.append(w.focusV); list.append(w.launch); list.append(w.riposte)
+	for a in list:
+		if a.has("m"): continue          # one move can sit in two places (the third Horizontal is also Tempest)
+		a["cancel"] = 0.0; a["rate"] = 1.0
+		if not a.get("path", false) or not moves.has(a.move):
+			a["path"] = false; continue
+		var m: Dictionary = moves[a.move]
+		var rate: float = a.rate0 * w.get("rate", 1.0)
+		a.rate = rate; a["m"] = m
+		a.windup = (m.hit0 - m.start) / rate
+		a.active = (m.hit1 - m.hit0) / rate
+		a.recover = (m.end - m.hit1) / rate
+		a.cancel = (m.cancel - m.start) / rate
+		a.anim = [m.clip, m.start, m.peak, m.end]
+		a.hold = m.start
+		a.range = m.reach - 0.9 + w.len + 0.75        # for the rival's judgement of distance only: hits are decided by the blade
 
 static func weapon_of(id: String) -> Dictionary:
 	var w: Dictionary = data().weapons
-	return w.get(id, w.sword)
+	return w.get(id, w.f_long)
+
+## A value from one of a move's per-frame lists (60 a second of clip time) at clip time `ct`, blended between frames.
+static func _at(list: Array, ct: float) -> float:
+	var x: float = clampf(ct * 60.0, 0.0, list.size() - 1.0)
+	var i := int(x)
+	if i >= list.size() - 1: return list[list.size() - 1]
+	return lerpf(list[i], list[i + 1], x - i)
+
+## The blade of a fighter in a `path` attack, at clip time `ct` (seconds after the move's start): [hand, tip] in the world,
+## each a Vector3 (y is height). Its length is the sword's own, so a longer sword really does reach further.
+static func blade_at(f: Dictionary, ct: float) -> Array:
+	var m: Dictionary = f.atk.m
+	var c := cos(f.yaw); var s := sin(f.yaw)
+	var hx := _at(m.hx, ct); var hz := _at(m.hz, ct)
+	var L: float = f.weapon.get("len", 0.9) + f.stats.reach * 0.5
+	var tx := hx + _at(m.dx, ct) * L; var tz := hz + _at(m.dz, ct) * L
+	return [Vector3(f.x + hx * c + hz * s, _at(m.hy, ct), f.z - hx * s + hz * c),
+		Vector3(f.x + tx * c + tz * s, _at(m.hy, ct) + _at(m.dy, ct) * L, f.z - tx * s + tz * c)]
+
+## Has the attack reached the point in its follow-through where the next move of a string may begin?
+static func can_chain(f: Dictionary) -> bool:
+	if f.state != "attack" or f.atk.focus: return false
+	return f.t >= _cancel_at(f)
+
+static func _cancel_at(f: Dictionary) -> float:
+	var a: Dictionary = f.atk
+	var total: float = a.windup + a.active + a.recover
+	if not a.path: return total
+	# a cut that touched nothing has to be carried further through before the next one: an opening for the other side
+	return a.cancel if f.connected else (a.cancel + total) * 0.5
 
 static func shield_of(id: String) -> Dictionary:
 	var s: Dictionary = data().shields
@@ -86,7 +143,7 @@ static func _fresh() -> Dictionary:
 		"disarmed": false, "disarmT": 0.0, "dropX": 0.0, "dropZ": 0.0, "groundHit": false, "floored": false, "launched": false,
 		"held": false, "guardM": GUARD_MAX, "guardRest": 0.0, "parryCd": 0.0, "parryOk": false,
 		"charge": "", "chargeMul": 1.0, "juggle": 0, "airDur": AIR_TIME, "buffT": 0.0, "staggerDur": 0.0, "parried": false, "bounced": false,
-		"connected": false, "winded": 0.0, "regenDelay": 0.0}
+		"connected": false, "winded": 0.0, "regenDelay": 0.0, "warp": 1.0}
 
 static func _make_fighter(id: int, stats: Dictionary) -> Dictionary:
 	var f := {"id": id, "stats": stats, "weapon": weapon_of(stats.weapon), "shield": shield_of(stats.get("shield", "wood")), "skill": skill_of(stats.skill),
@@ -162,7 +219,7 @@ static func _spend(f: Dictionary, amount: float, delay: float, w: Dictionary) ->
 			f.winded = WINDED_TIME; f.regenDelay = 1.0; w.events.append({"type": "winded", "id": f.id})
 
 static func _begin_swing(f: Dictionary, atk: Dictionary, w: Dictionary) -> void:
-	f.state = "attack"; f.t = 0.0; f.atk = atk; f.hitDone = false; f.connected = false; f.swung = false; f.swingId += 1
+	f.state = "attack"; f.t = 0.0; f.atk = atk; f.hitDone = false; f.connected = false; f.swung = false; f.swingId += 1; f.warp = 1.0
 	w.events.append({"type": "windup", "id": f.id, "heavy": atk.focus})
 
 ## Is the stick held toward ("F") or away from ("B") the way the fighter faces?
@@ -307,7 +364,7 @@ static func _update_fighter(f: Dictionary, cmd: Dictionary, other: Dictionary, w
 		"attack":
 			# A swing that touches nothing takes longer to recover from: an opening for the other side.
 			var a: Dictionary = f.atk
-			var recover: float = a.recover * (1.0 if (f.connected or f.t < a.windup + a.active) else 1.4)
+			var recover: float = a.recover * (1.0 if (a.path or f.connected or f.t < a.windup + a.active) else 1.4)
 			var total: float = a.windup + a.active + recover
 			# Presses made during a swing wait their turn (two at most), so a string can be tapped out quickly.
 			if cmd.h: f.queue = (f.queue + "H").substr(0, 2)
@@ -321,21 +378,53 @@ static func _update_fighter(f: Dictionary, cmd: Dictionary, other: Dictionary, w
 			else:
 				if f.t < a.windup: _face(f, cmd, 9 if a.focus else 7)
 				var gap := hyp(other.x - f.x, other.z - f.z)
-				if f.t > a.windup * (0.3 if a.dash else 0.55) and f.t < a.windup + a.active and gap > 1.35:
-					tvx = fx * a.lunge; tvz = fz * a.lunge
-				# A back-step move springs away from the enemy first, then comes back in with the cut.
-				if a.back > 0 and f.t < a.windup * 0.55:
-					tvx = -fx * a.back; tvz = -fz * a.back
-				accel = 18.0
+				if a.path:
+					# The body goes where the animation's own steps carry it (measured from the planted foot), so feet do not
+					# slide. Before the cut the stride is lengthened or shortened so the blade arrives at the enemy: never
+					# more than 1.7 times the clip's own step, and never through them.
+					var m: Dictionary = a.m
+					var ct0: float = (f.t - dt) * a.rate; var ct1: float = f.t * a.rate
+					var dzl := _at(m.tz, ct1) - _at(m.tz, ct0)
+					var dxl := _at(m.tx, ct1) - _at(m.tx, ct0)
+					var blade_reach: float = m.reach - 0.9 + f.weapon.get("len", 0.9)
+					if f.t < a.windup + a.active:
+						var need: float = gap - blade_reach * 0.82
+						var left: float = _at(m.tz, a.windup * a.rate) - _at(m.tz, ct0)
+						if left > 0.08: f.warp = clampf(need / left, 0.0, 1.7)
+						else:
+							# a clip that cuts on the spot: a short step in, if the enemy is just out of reach
+							f.warp = 1.0
+							var time_left: float = max(a.windup - f.t, dt)
+							if need > 0.0 and f.t < a.windup: dzl += min(min(need, 0.55) / time_left, 2.6) * dt
+					else:
+						f.warp = min(f.warp, 1.0)
+					if gap < RADIUS * 2 + 0.25 and dzl > 0: dzl = 0.0
+					dzl *= f.warp; dxl *= min(f.warp, 1.0)
+					f.vx = (dxl * fz + dzl * fx) / dt; f.vz = (-dxl * fx + dzl * fz) / dt
+					accel = 0.0
+				else:
+					if f.t > a.windup * (0.3 if a.dash else 0.55) and f.t < a.windup + a.active and gap > 1.35:
+						tvx = fx * a.lunge; tvz = fz * a.lunge
+					# A back-step move springs away from the enemy first, then comes back in with the cut.
+					if a.back > 0 and f.t < a.windup * 0.55:
+						tvx = -fx * a.back; tvz = -fz * a.back
+					accel = 18.0
 				if not f.swung and f.t >= a.windup:
 					f.swung = true; w.events.append({"type": "swing", "id": f.id, "heavy": a.focus})
-				if cmd.dodge and f.t >= a.windup + a.active + recover * 0.45 and _start_dodge(f, cmd, w): pass
+				var free: bool = a.launch or a.name == "riposte"
+				# A string is three presses at most; a finisher, a charged strike or a special always ends one.
+				var ended: bool = a.focus or a.ender or a.solo or free or f.seq.length() >= 3
+				var cancel_at: float = _cancel_at(f)
+				if cmd.dodge and f.t >= (cancel_at if a.path else a.windup + a.active + recover * 0.45) and _start_dodge(f, cmd, w): pass
+				elif a.path and f.t >= cancel_at and f.t < total and f.queue != "" and not a.focus and (not ended or a.solo):
+					# The next cut of a string flows out of this one's follow-through, without waiting for the sword to come home.
+					var q0: String = f.queue.substr(0, 1)
+					f.state = "idle"; f.t = 0.0; f.queue = f.queue.substr(1); f.seqT = STRING_GAP; f.vx = 0.0; f.vz = 0.0
+					if not _start_attack(f, q0, w, cmd): f.queue = ""
 				elif f.t >= total:
 					var q: String = f.queue.substr(0, 1)
-					var free: bool = a.launch or a.name == "riposte"
 					f.state = "idle"; f.t = 0.0; f.queue = f.queue.substr(1); f.seqT = STRING_GAP
-					# A string is three presses at most; a finisher, a charged strike or a special always ends one.
-					var ended: bool = a.focus or a.ender or a.solo or free or f.seq.length() >= 3
+					if a.path: f.vx = 0.0; f.vz = 0.0
 					if ended: _end_string(f, w)
 					if a.focus: f.queue = ""
 					# After a finisher there is a breath before the next string, except after the uppercut or a counter.
@@ -436,6 +525,13 @@ static func _find_hit(a: Dictionary, b: Dictionary) -> Dictionary:
 	if a.t < atk.windup or a.t > atk.windup + atk.active: return {}
 	var dx: float = b.x - a.x
 	var dz: float = b.z - a.z
+	if atk.path:
+		# The hit is where the blade is: it lands the moment the sword itself passes through the other fighter's body.
+		for back in [0.0, 0.5]:
+			var seg := blade_at(a, (a.t - back * TICK) * atk.rate)
+			var p := Geometry2D.get_closest_point_to_segment(Vector2(b.x, b.z), Vector2(seg[0].x, seg[0].z), Vector2(seg[1].x, seg[1].z))
+			if p.distance_to(Vector2(b.x, b.z)) <= RADIUS + 0.1: return atk
+		return {}
 	if hyp(dx, dz) > atk.range + a.stats.reach: return {}
 	if absf(ang_diff(a.yaw, atan2(dx, dz))) > atk.arc: return {}
 	return atk
@@ -498,7 +594,7 @@ static func _apply_hit(a: Dictionary, b: Dictionary, atk: Dictionary, w: Diction
 	if guarding and not atk.skill:
 		# A raised shield stops the blow at the cost of guard meter (and a scratch of damage). A heavy attack takes most of a
 		# full guard at once; a kick, or the blow that empties the meter, knocks the shield aside and leaves the defender reeling.
-		var cost: float = raw * 2.1 * b.shield.cost * a.weapon.guardDmg
+		var cost: float = raw * 3.0 * b.shield.cost * a.weapon.guardDmg      # (3.0, up from 2.1: cuts now take their animation's time, so fewer land per second)
 		if atk.focus: cost = 70.0 * b.shield.heavy
 		if atk.guardBreak: cost = GUARD_MAX
 		b.guardM -= cost

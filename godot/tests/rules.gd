@@ -49,14 +49,33 @@ func has(events: Array, type: String) -> bool:
 	return events.any(func(e): return e.type == type)
 
 func _init() -> void:
-	for weapon in ["f_sword", "f_katana", "f_mace", "f_hammer"]:
+	for weapon in ["f_short", "f_long", "f_katana", "f_sabre", "f_broad"]:
 		var w := fresh(weapon)
 		var ev := play(w, "HHH")
 		var h := hits(ev)
 		check("%s: three thumb taps are three quick hits, never a charge" % weapon, h.size() == 3 and not has(ev, "charge") and h[2].title == "Tempest", "%d hits" % h.size())
 	var w := fresh()
 	var first := hits(play(w, "H", 20, 0.0, null, 40))
-	check("a tap lands within a quarter of a second", first.size() > 0 and first[0].n <= 15)
+	check("a tap's cut lands when its animation does: about a third of a second, not squeezed", first.size() > 0 and first[0].n >= 15 and first[0].n <= 26, "tick %d" % (first[0].n if first.size() > 0 else -1))
+	# --- animation first: the blade, the feet and the follow-through decide things
+	w = fresh("f_long", 4.2)
+	check("a cut made out of reach touches nothing", hits(play(w, "H", 20, 0.0, null, 80)).size() == 0)
+	var far := {}
+	for weapon in ["f_short", "f_long"]:
+		far[weapon] = 0.0
+		for g in range(40, 72):
+			w = fresh(weapon, g * 0.05)
+			if hits(play(w, "H", 20, 0.0, null, 60)).size() == 1: far[weapon] = g * 0.05
+	check("the longsword reaches further than the shortsword, because its blade is longer", far.f_long > far.f_short + 0.1, "%.2f m against %.2f m" % [far.f_long, far.f_short])
+	w = fresh("f_long", 3.0); var zs: float = w.fighters[0].z
+	play(w, "H", 20, 1.0, null, 70)
+	check("a lunge carries the body forward on its own steps", w.fighters[0].z - zs > 0.8 and w.fighters[0].z - zs < 4.2, "%.2f m" % (w.fighters[0].z - zs))
+	w = fresh("f_long", 1.2); zs = w.fighters[0].z
+	play(w, "VVV", 20, 0.0, null, 200)
+	check("a leaping blow at close range does not carry the fighter through the enemy", w.fighters[0].z < w.fighters[1].z)
+	w = fresh(); var two := hits(play(w, "HH", 6, 0.0, null, 120))
+	var one: Dictionary = Sim.weapon_of("f_long").h[0]
+	check("the second cut flows out of the first one's follow-through", two.size() == 2 and (two[1].n - two[0].n) * Sim.TICK < one.recover + Sim.weapon_of("f_long").h[1].windup, "%.2f s apart" % ((two[1].n - two[0].n) * Sim.TICK if two.size() == 2 else 0.0))
 	for weapon in ["f_sword", "f_katana"]:
 		w = fresh(weapon); var h := hits(play(w, "VVV"))
 		check("%s VVV ends in Earthsplitter and floors them" % weapon, h.size() == 3 and h[2].title == "Earthsplitter" and h[2].slam)
@@ -87,7 +106,7 @@ func _init() -> void:
 	var ev2 := play(w, "HH", 20, 0.0, guard_foe, 90)
 	check("a held guard blocks normal hits and loses guard meter", ev2.filter(func(e): return e.type == "block").size() == 2 and hits(ev2).size() == 0 and w.fighters[1].guardM < Sim.GUARD_MAX, "guard left %d" % w.fighters[1].guardM)
 	w = fresh(); w.fighters[1].parryCd = 99.0
-	check("enough blows break a guard", has(play(w, "HHHHHHHHHHHH", 24, 0.0, guard_foe, 480), "guardbreak"))
+	check("enough blows break a guard", has(play(w, "HHHHHHHHHHHHHHHHHH", 40, 0.0, guard_foe, 900), "guardbreak"))
 	w = fresh(); w.fighters[1].parryCd = 99.0
 	check("stick away + V (the kick) breaks a guard at once", has(play(w, "V", 20, -1.0, guard_foe, 70), "guardbreak"))
 	w = fresh(); w.fighters[1].parryCd = 99.0
@@ -103,16 +122,24 @@ func _init() -> void:
 	ev2 = play(w, "H", 20, 0.0, func(_n, _w): return cmd({"guard": true}), 40)
 	check("a guard does nothing against a blow from behind", hits(ev2).size() == 1 and hits(ev2)[0].backstab)
 
-	w = fresh(); ev2 = play(w, "H", 20, 0.0, func(n, _w): return cmd({"faceYaw": PI, "guard": n >= 4 and n < 12}), 80)
+	# The shield is the timing game: raise it just before the blow lands (here, an eighth of a second before) and it is a parry.
+	var timed := func(w2: Dictionary, me: int, heavy_only := false) -> bool:
+		var foe2: Dictionary = w2.fighters[1 - me]
+		return foe2.state == "attack" and (foe2.atk.focus or not heavy_only) and foe2.t >= foe2.atk.windup - 0.13 and foe2.t <= foe2.atk.windup + foe2.atk.active
+	w = fresh(); ev2 = play(w, "H", 20, 0.0, func(_n, w2): return cmd({"faceYaw": PI, "guard": timed.call(w2, 1)}), 80)
 	check("parrying a normal hit deflects it: no damage, weapon kept", has(ev2, "deflect") and hits(ev2).size() == 0 and not w.fighters[0].disarmed and w.fighters[1].hp == 400)
+	w = fresh(); ev2 = play(w, "H", 20, 0.0, func(n, _w): return cmd({"faceYaw": PI, "guard": n >= 1 and n < 5}), 80)
+	check("a shield raised too early is not a parry: the blow is only blocked", not has(ev2, "deflect"))
 	w = fresh(); ev2 = []
 	for n in 240:
-		Sim.step_world(w, [cmd({"faceYaw": 0.0, "guard": n >= 54 and n < 70}), cmd({"faceYaw": PI, "v": n == 0, "vHold": n < 50})])
+		Sim.step_world(w, [cmd({"faceYaw": 0.0, "guard": timed.call(w, 0, true)}), cmd({"faceYaw": PI, "v": n == 0, "vHold": n < 50})])
 		ev2.append_array(w.events); w.events.clear()
 	check("parrying a heavy attack throws the rival off balance, with no disarm", has(ev2, "parry") and not has(ev2, "disarm") and not w.fighters[1].disarmed and not ev2.any(func(e): return e.type == "hit" and e.id == 1 and e.blue))
 	w = fresh(); ev2 = []
-	for n in 120:
-		Sim.step_world(w, [cmd({"faceYaw": 0.0, "guard": n >= 4 and n < 12, "h": n == 30}), cmd({"faceYaw": PI, "h": n == 0, "hHold": n < 9})])
+	var parried_at := -1
+	for n in 160:
+		Sim.step_world(w, [cmd({"faceYaw": 0.0, "guard": timed.call(w, 0), "h": parried_at >= 0 and n == parried_at + 4}), cmd({"faceYaw": PI, "h": n == 0, "hHold": n < 9})])
+		if parried_at < 0 and has(w.events, "deflect"): parried_at = n
 		ev2.append_array(w.events); w.events.clear()
 	check("the hit after a parry is a riposte", ev2.any(func(e): return e.type == "hit" and e.id == 0 and e.riposte))
 	w = fresh(); Sim.step_world(w, [cmd({"guard": true}), Sim.empty_cmd()])
@@ -142,7 +169,7 @@ func _init() -> void:
 	for pair in [["hard", "easy"], ["normal", "easy"], ["hard", "normal"]]:
 		var wins := [0, 0]
 		for m in 30:
-			var arms := ["f_sword", "f_katana", "f_mace", "f_hammer", "f_dagger"]
+			var arms := ["f_long", "f_short", "f_katana", "f_sabre", "f_broad"]
 			var shields := ["buckler", "wood", "kite"]
 			var sa: Dictionary = roster[m % 3].stats.duplicate(); sa.weapon = arms[m % 5]; sa.shield = shields[m % 3]
 			var sb: Dictionary = roster[(m / 3) % 3].stats.duplicate(); sb.weapon = arms[(m / 2) % 5]; sb.shield = shields[(m + 1) % 3]

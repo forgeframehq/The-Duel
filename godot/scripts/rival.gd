@@ -222,7 +222,7 @@ func think(w: Dictionary, self_idx: int) -> Dictionary:
 		"attack":
 			var reach: float = (2.6 if plan == "focus" else 2.0) + reach_bonus * 0.8
 			if dist > reach: cmd.mx = nx; cmd.mz = nz
-			var can_chain: bool = f.state == "attack" and not f.atk.focus and f.t > f.atk.windup + f.atk.active and f.queue == ""
+			var can_chain: bool = f.state == "attack" and not f.atk.focus and f.t > f.atk.windup + f.atk.active and f.queue == ""      # press during the follow-through: the cut is queued and flows out at the cancel point
 			if dist <= reach + 0.25 and facing and combo_left > 0 and f.stam > 16:
 				if plan == "focus" and free:
 					_begin_hold(cmd, 0.72 + r() * 0.5, r() < p.feint, seq[0]); combo_left = 0
